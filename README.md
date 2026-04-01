@@ -206,13 +206,6 @@ Contributions are welcome! Follow these guidelines:
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 📞 Contact & Support
-
-**Project Lead:** Aditya  
-**GitHub:** [@ADITYA-CoDE101](https://github.com/ADITYA-CoDE101)  
-**Repository:** [Sentinel-RTI](https://github.com/ADITYA-CoDE101/Senitinal-RTI)
-
-For issues or questions, please open an issue on the GitHub repository.
 
 ---
 
