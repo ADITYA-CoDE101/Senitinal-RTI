@@ -24,6 +24,7 @@ export default function Navbar({ page, navigate }) {
     { id: 'home',    label: 'Home'    },
     { id: 'about',   label: 'About'   },
     { id: 'contact', label: 'Contact' },
+    { id: 'waitlist', label: 'Waitlist' },
   ]
 
   return (

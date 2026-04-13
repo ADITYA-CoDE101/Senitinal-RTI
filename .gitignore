@@ -23,6 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 
-/src_org1
-/src_org
-/junk
+/src_org1*
+/src_org*
+/junk*
