@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Icon from '../components/Icon'
+import { submitContactForm } from '../services/api'
 
 /* ── DATA (unchanged) ─────────────────────────────────────────── */
 const FAQS = [
@@ -208,22 +209,31 @@ function SocialBtn({ label }) {
 
 /* ── CONTACT PAGE ─────────────────────────────────────────────── */
 export default function Contact({ navigate }) {
-  const [form, setForm]     = useState({ name: '', email: '', issue: ISSUE_TYPES[0], message: '' })
-  const [errors, setErrors] = useState({})
+  const [form, setForm]       = useState({ name: '', email: '', issue: ISSUE_TYPES[0], message: '' })
+  const [errors, setErrors]   = useState({})
   const [sending, setSending] = useState(false)
   const [sent, setSent]       = useState(false)
+  const [apiError, setApiError] = useState('')
   const [openFaq, setOpenFaq] = useState(null)
 
-  const handle = (key, val) => { setForm(f => ({ ...f, [key]: val })); if (errors[key]) setErrors(e => ({ ...e, [key]: false })) }
+  const handle = (key, val) => { setForm(f => ({ ...f, [key]: val })); if (errors[key]) setErrors(e => ({ ...e, [key]: false })); setApiError('') }
 
-  const submit = () => {
+  const submit = async () => {
     const errs = {}
     if (!form.name.trim())    errs.name = true
     if (!form.email.trim())   errs.email = true
     if (!form.message.trim()) errs.message = true
     if (Object.keys(errs).length) { setErrors(errs); return }
     setSending(true)
-    setTimeout(() => { setSending(false); setSent(true) }, 2200)
+    setApiError('')
+    try {
+      await submitContactForm(form)
+      setSending(false)
+      setSent(true)
+    } catch (error) {
+      setSending(false)
+      setApiError(error.message || 'Failed to send message. Please try again.')
+    }
   }
 
   const gridBg = {
@@ -330,6 +340,18 @@ export default function Contact({ navigate }) {
                   <a href="#" style={{ color: '#1a56e8' }}>Privacy Policy</a>
                 </p>
               </div>
+
+              {/* Error message from backend */}
+              {apiError && (
+                <div style={{
+                  marginTop: 16, padding: '12px 18px', borderRadius: 10,
+                  background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+                  color: '#ef4444', fontSize: 13, fontFamily: "'DM Sans',sans-serif",
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}>
+                  <span style={{ fontSize: 16 }}>⚠</span> {apiError}
+                </div>
+              )}
 
               {/* Quick actions */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 28 }}>

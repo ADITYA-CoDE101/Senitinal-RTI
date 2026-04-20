@@ -1,0 +1,93 @@
+/* ─── GLOBAL RESET & VARIABLES ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Brand */
+  --blue: #1a56e8;
+  --blue-light: #3b74ff;
+  --cyan: #00c2e0;
+  --green: #0ec98c;
+  --amber: #f59e0b;
+  --red: #ef4444;
+
+  /* Home page (dark terminal) */
+  --home-bg: #07090f;
+  --home-surface: #0d1117;
+  --home-border: rgba(255,255,255,0.07);
+
+  /* About page (warm editorial) */
+  --cream: #fdf8f2;
+  --ink-warm: #1a0a00;
+  --gold: #d4a028;
+  --gold-light: #e8c060;
+  --warm-mid: #8b6914;
+  --warm-muted: #8b7060;
+  --warm-border: #e0d4c0;
+  --warm-surface: #fff5e6;
+
+  /* Contact page (swiss minimal) */
+  --white: #ffffff;
+  --ink: #0c0e14;
+  --surface: #f7f8fc;
+  --border: #e5e8f0;
+  --text: #2c3655;
+  --muted: #8b93ab;
+
+  /* Shared */
+  --radius: 12px;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
+  --shadow: 0 4px 24px rgba(0,0,0,0.10);
+  --shadow-lg: 0 12px 48px rgba(0,0,0,0.15);
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+::selection { background: var(--blue); color: white; }
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-thumb { background: var(--blue); border-radius: 3px; }
+svg { display: inline-block; vertical-align: middle; flex-shrink: 0; }
+
+/* ─── SHARED ANIMATIONS ─────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; } to { opacity: 1; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-10px); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; } 50% { opacity: 0; }
+}
+@keyframes scanline {
+  0%   { top: -5%; }
+  100% { top: 105%; }
+}
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; } 50% { opacity: 0.3; }
+}
+@keyframes circleOut {
+  from { transform: scale(1); opacity: 0.6; }
+  to   { transform: scale(2.6); opacity: 0; }
+}
+@keyframes scaleIn {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* ─── PAGE ENTER ────────────────────────────────────────────────── */
+.page-enter { animation: fadeIn 0.35s ease both; }
