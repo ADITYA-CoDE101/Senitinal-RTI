@@ -44,27 +44,49 @@ export async function submitContactForm(formData) {
 // ── COMPLAINTS ──────────────────────────────────────────────────
 
 /**
- * Submit a new complaint (supports text, image, voice, location)
- * Uses FormData for file upload support
+ * Run AI analysis on complaint data (pre-submit — no DB write)
+ * Sends image if provided so Gemini Vision can analyze it
  */
-export async function submitComplaint({ description, category, location, inputMode, imageFile, voiceTranscript, geoLat, geoLng }) {
+export async function analyzeComplaint({ description, category, location, inputMode, voiceTranscript, geoLat, geoLng, imageFile }) {
   try {
     const formData = new FormData();
     formData.append('description', description || '');
     formData.append('category', category || 'Other');
     formData.append('location', location || '');
     formData.append('inputMode', inputMode || 'text');
+    if (voiceTranscript) formData.append('voiceTranscript', voiceTranscript);
+    if (geoLat) formData.append('geoLat', geoLat);
+    if (geoLng) formData.append('geoLng', geoLng);
+    if (imageFile) formData.append('image', imageFile); // send image for vision analysis
 
+    const response = await fetch(`${API_BASE}/complaints/analyze`, { method: 'POST', body: formData });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'AI analysis failed');
+    return data;
+  } catch (error) {
+    throw error;
+  }
+}
+
+/**
+ * Submit a new complaint (supports text, image, voice, location)
+ */
+export async function submitComplaint({ description, category, location, inputMode, imageFile, voiceTranscript, geoLat, geoLng, legalDraft, otpVerified, captchaPassed }) {
+  try {
+    const formData = new FormData();
+    formData.append('description', description || '');
+    formData.append('category', category || 'Other');
+    formData.append('location', location || '');
+    formData.append('inputMode', inputMode || 'text');
     if (voiceTranscript) formData.append('voiceTranscript', voiceTranscript);
     if (geoLat) formData.append('geoLat', geoLat);
     if (geoLng) formData.append('geoLng', geoLng);
     if (imageFile) formData.append('image', imageFile);
+    if (legalDraft) formData.append('legalDraft', legalDraft);
+    formData.append('otpVerified', otpVerified ? 'true' : 'false');
+    formData.append('captchaPassed', captchaPassed ? 'true' : 'false');
 
-    const response = await fetch(`${API_BASE}/complaints`, {
-      method: 'POST',
-      body: formData, // No Content-Type header — browser sets it with boundary
-    });
-
+    const response = await fetch(`${API_BASE}/complaints`, { method: 'POST', body: formData });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to submit complaint');
     return data;
@@ -72,6 +94,7 @@ export async function submitComplaint({ description, category, location, inputMo
     throw error;
   }
 }
+
 
 /**
  * Get all complaints (newest first)
