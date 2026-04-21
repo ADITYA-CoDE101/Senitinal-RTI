@@ -1,4 +1,5 @@
 const Complaint = require('../models/Complaint');
+const { geminiAnalysis, generateRTIDraft } = require('../services/aiService');
 
 const CATEGORY_QUESTIONS = {
   'Road & Infrastructure': [
@@ -23,107 +24,134 @@ const CATEGORY_QUESTIONS = {
     'Provide details of the stock of essential medicines available at the local primary health center.',
     'Provide the duty roster of doctors and paramedical staff assigned to this facility for the current month.',
     'Provide information on the budget allocated for equipment maintenance at this health center.',
-    'Provide the status of the Citizen\'s Charter and grievance redressal mechanism at this facility.'
+    "Provide the status of the Citizen's Charter and grievance redressal mechanism at this facility."
   ],
   'Education': [
     'Provide information on the teacher-student ratio at the specified government educational institution.',
     'Provide the details of funds received and utilized under Samagra Shiksha or other schemes for this school.',
     'Provide a copy of the latest infrastructure audit or building safety report for this school.',
     'Details of the midday meal provision and quality audits conducted in the current quarter.'
-  ]
+  ],
+  'Municipal Services': [
+    'Provide records of garbage collection frequency and schedule for this ward.',
+    'Provide the details of the sanitation staff assigned to this area and their attendance logs.',
+    'Status of any complaints filed with the municipality for this specific issue in the last 6 months.',
+    'Provide details of the budget allocated for cleanliness and sanitation in this ward.'
+  ],
+  'Land & Property': [
+    'Provide a certified copy of the land records / revenue records for the property in question.',
+    'Provide details of any pending litigation or encumbrance on the said property.',
+    'Details of any notices issued to or by the Revenue Department regarding this property.',
+    'Provide the name and designation of the revenue officer responsible for this area.'
+  ],
+  'Public Transport': [
+    'Provide the official timetable and route details for the transport service mentioned.',
+    'Provide records of complaints lodged about this transport service in the last 3 months.',
+    'Provide details of the officer responsible for monitoring this transport route.',
+    'Status of any pending improvements or sanctions for this transport service.'
+  ],
+  'Environment': [
+    'Provide copies of any pollution monitoring reports for this area in the last 6 months.',
+    'Provide details of any notices issued to polluting entities in this vicinity.',
+    'Status of any action taken by the Pollution Control Board regarding this complaint.',
+    'Provide the name and designation of the inspector responsible for this area.'
+  ],
 };
 
-const generateLegalDraft = (data) => {
-  const date = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-  const category = data.category || 'Road & Infrastructure';
-  const location = data.location || '[Specified Location]';
-  const description = data.description || data.voiceTranscript || '';
+// ── GENERATE LEGAL DRAFT ─────────────────────────────────────────────────────
 
-  const questions = CATEGORY_QUESTIONS[category] || CATEGORY_QUESTIONS['Road & Infrastructure'];
+// ── SCHEDULE FOLLOW-UPS ──────────────────────────────────────────────────────
+function scheduleFollowUps(filedDate) {
+  const base = new Date(filedDate);
+  return [
+    { type: 'reminder',   scheduledAt: new Date(base.getTime() + 7  * 24 * 60 * 60 * 1000), status: 'pending' },
+    { type: 'reminder',   scheduledAt: new Date(base.getTime() + 15 * 24 * 60 * 60 * 1000), status: 'pending' },
+    { type: 'appeal',     scheduledAt: new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000), status: 'pending' },
+    { type: 'escalation', scheduledAt: new Date(base.getTime() + 60 * 24 * 60 * 60 * 1000), status: 'pending' },
+  ];
+}
 
-  return `APPLICATION FOR INFORMATION UNDER THE RTI ACT, 2005
-
-To,
-The Public Information Officer (PIO),
-${data.authority || 'Concerned Public Authority'},
-Government of India / State Government.
-
-Date: ${date}
-
-Subject: Request for Information under the Right to Information Act, 2005 - Regarding ${category} at ${location}.
-
-Respected Sir/Madam,
-
-I, the undersigned, am a citizen of India. I require information and formal redressal regarding the following matter under the RTI Act, 2005:
-
-1. DESCRIPTION OF MATTER:
-   ${description}
-
-2. SPECIFIC INFORMATION REQUIRED:
-${questions.map((q, i) => `   (${String.fromCharCode(97 + i)}) ${q}`).join('\n')}
-
-3. DURATION:
-   The information required pertains to the period from ${new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toLocaleDateString()} to ${date}.
-
-DECLARATION:
-I state that the information sought does not fall within the restrictions contained in Section 8 and 9 of the RTI Act and to the best of my knowledge it pertains to your office.
-
-FEE DETAILS:
-I am attaching the requisite RTI application fee. (Note: System-automated digital payment reference included).
-
-Yours faithfully,
-[Digitally Signed via Sentinel-RTI]
-Contact: ${data.email || 'Registered User'}
-`;
-};
-
-// @desc    Submit a new complaint (with optional file upload)
-// @route   POST /api/complaints
-// @access  Public
-const submitComplaint = async (req, res) => {
+// ── ANALYZE (Pre-submit AI endpoint) ────────────────────────────────────────
+// @route POST /api/complaints/analyze
+const analyzeComplaint = async (req, res) => {
   try {
-    const { description, category, location, inputMode, voiceTranscript, geoLat, geoLng, email, legalDraft } = req.body;
-
+    const { description, category, location, inputMode, voiceTranscript, geoLat, geoLng } = req.body;
     if (!description && !voiceTranscript) {
-      return res.status(400).json({
-        success: false,
-        error: 'Please provide a description or voice input.',
-      });
+      return res.status(400).json({ success: false, error: 'Please provide a description or voice input.' });
     }
-
-    const complaintData = {
+    const data = {
       description: description || voiceTranscript || '',
+      voiceTranscript: voiceTranscript || '',
       category: category || 'Other',
       location: location || '',
       inputMode: inputMode || 'text',
-      voiceTranscript: voiceTranscript || '',
-      email: email || 'user@sentinel.com', // Optional: link to logged in user
+      geoLat, geoLng,
+      imagePath: req.file ? req.file.path : null,
     };
+    const ai = await geminiAnalysis(data);
+    res.status(200).json({ success: true, data: ai });
+  } catch (error) {
+    console.error('❌ AI analysis error:', error.message);
+    res.status(500).json({ success: false, error: 'AI processing failed.' });
+  }
+};
 
-    // Use provided draft or generate one
-    if (legalDraft) {
-      complaintData.legalDraft = legalDraft;
-    } else {
-      // We'll need the authority for the fallback draft
-      // We can use a simplified version or just wait for pre-save, 
-      // but the model's pre-save doesn't have access to all fields easily if we're not careful.
-      // complaintData.legalDraft will be updated after we know the authority if needed.
-      complaintData.legalDraft = generateLegalDraft(complaintData);
+// ── SUBMIT COMPLAINT ─────────────────────────────────────────────────────────
+// @route POST /api/complaints
+const submitComplaint = async (req, res) => {
+  try {
+    const { description, category, location, inputMode, voiceTranscript, geoLat, geoLng, email, legalDraft, otpVerified, captchaPassed } = req.body;
+
+    if (!description && !voiceTranscript) {
+      return res.status(400).json({ success: false, error: 'Please provide a description or voice input.' });
     }
 
-    // Handle geo coordinates
+    const data = {
+      description: description || voiceTranscript || '',
+      voiceTranscript: voiceTranscript || '',
+      category: category || 'Other',
+      location: location || '',
+      inputMode: inputMode || 'text',
+      geoLat, geoLng, email,
+      imageUrl:  req.file ? `/uploads/${req.file.filename}` : '',
+      imagePath: req.file ? req.file.path : null,  // full disk path for vision analysis
+    };
+
+    // Run AI analysis
+    const ai = await geminiAnalysis(data);
+
+    const filedDate = new Date();
+
+    const complaintData = {
+      description: data.description,
+      category: ai.category || data.category,
+      location: data.location,
+      inputMode: data.inputMode,
+      voiceTranscript: data.voiceTranscript,
+      imageUrl: data.imageUrl,
+      aiProcessing: {
+        ...ai,
+        processedAt: new Date(),
+      },
+      followUps: scheduleFollowUps(filedDate),
+      submissionVerification: {
+        otpVerified: otpVerified === 'true' || otpVerified === true,
+        captchaPassed: captchaPassed === 'true' || captchaPassed === true,
+        verifiedAt: new Date(),
+      },
+    };
+
     if (geoLat && geoLng) {
       complaintData.geoCoords = { lat: parseFloat(geoLat), lng: parseFloat(geoLng) };
     }
 
-    // Handle image upload
-    if (req.file) {
-      complaintData.imageUrl = `/uploads/${req.file.filename}`;
-    }
+    // Generate human-like RTI draft via Gemini (falls back to rule-based template if quota exhausted)
+    complaintData.legalDraft = legalDraft || await generateRTIDraft(data, ai);
 
     const complaint = await Complaint.create(complaintData);
 
-    console.log(`📋 New complaint filed: ${complaint.trackingId} (${complaint.category}) — Severity: ${complaint.severity}`);
+    console.log(`📋 New complaint filed: ${complaint.trackingId} (${complaint.category})`);
+    console.log(`   AI Severity: ${ai.severity} | Confidence: ${ai.confidence}% | Model: ${ai.model}`);
     console.log(`   Authority: ${complaint.authority}`);
 
     res.status(201).json({
@@ -135,12 +163,14 @@ const submitComplaint = async (req, res) => {
         severity: complaint.severity,
         authority: complaint.authority,
         category: complaint.category,
+        aiProcessing: complaint.aiProcessing,
+        followUps: complaint.followUps,
         createdAt: complaint.createdAt,
       },
     });
   } catch (error) {
     if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map((err) => err.message);
+      const messages = Object.values(error.errors).map((e) => e.message);
       return res.status(400).json({ success: false, error: messages.join(', ') });
     }
     console.error('❌ Error submitting complaint:', error.message);
@@ -148,9 +178,7 @@ const submitComplaint = async (req, res) => {
   }
 };
 
-// @desc    Get all complaints (newest first)
-// @route   GET /api/complaints
-// @access  Public
+// ── GET ALL COMPLAINTS ───────────────────────────────────────────────────────
 const getComplaints = async (req, res) => {
   try {
     const complaints = await Complaint.find().sort({ createdAt: -1 }).limit(50);
@@ -161,24 +189,13 @@ const getComplaints = async (req, res) => {
   }
 };
 
-// @desc    Search complaint by tracking ID
-// @route   GET /api/complaints/search?trackingId=SRT-2026-1001
-// @access  Public
+// ── SEARCH COMPLAINT ─────────────────────────────────────────────────────────
 const searchComplaint = async (req, res) => {
   try {
     const { trackingId } = req.query;
-    if (!trackingId) {
-      return res.status(400).json({ success: false, error: 'Please provide a tracking ID.' });
-    }
-
-    const complaint = await Complaint.findOne({
-      trackingId: { $regex: trackingId, $options: 'i' }
-    });
-
-    if (!complaint) {
-      return res.status(404).json({ success: false, error: 'Complaint not found.' });
-    }
-
+    if (!trackingId) return res.status(400).json({ success: false, error: 'Please provide a tracking ID.' });
+    const complaint = await Complaint.findOne({ trackingId: { $regex: trackingId, $options: 'i' } });
+    if (!complaint) return res.status(404).json({ success: false, error: 'Complaint not found.' });
     res.status(200).json({ success: true, data: complaint });
   } catch (error) {
     console.error('❌ Error searching complaint:', error.message);
@@ -186,15 +203,11 @@ const searchComplaint = async (req, res) => {
   }
 };
 
-// @desc    Get a single complaint by ID
-// @route   GET /api/complaints/:id
-// @access  Public
+// ── GET COMPLAINT BY ID ──────────────────────────────────────────────────────
 const getComplaintById = async (req, res) => {
   try {
     const complaint = await Complaint.findById(req.params.id);
-    if (!complaint) {
-      return res.status(404).json({ success: false, error: 'Complaint not found.' });
-    }
+    if (!complaint) return res.status(404).json({ success: false, error: 'Complaint not found.' });
     res.status(200).json({ success: true, data: complaint });
   } catch (error) {
     console.error('❌ Error fetching complaint:', error.message);
@@ -202,29 +215,16 @@ const getComplaintById = async (req, res) => {
   }
 };
 
-// @desc    Update complaint status
-// @route   PATCH /api/complaints/:id/status
-// @access  Public
+// ── UPDATE COMPLAINT STATUS ──────────────────────────────────────────────────
 const updateComplaintStatus = async (req, res) => {
   try {
     const { status, event } = req.body;
     const complaint = await Complaint.findById(req.params.id);
-
-    if (!complaint) {
-      return res.status(404).json({ success: false, error: 'Complaint not found.' });
-    }
-
+    if (!complaint) return res.status(404).json({ success: false, error: 'Complaint not found.' });
     complaint.status = status;
-    complaint.timeline.push({
-      date: new Date(),
-      event: event || `Status changed to ${status}`,
-      status: status,
-    });
-
+    complaint.timeline.push({ date: new Date(), event: event || `Status changed to ${status}`, status });
     await complaint.save();
-
-    console.log(`🔄 Complaint ${complaint.trackingId} status updated to: ${status}`);
-
+    console.log(`🔄 Complaint ${complaint.trackingId} status → ${status}`);
     res.status(200).json({ success: true, data: complaint });
   } catch (error) {
     console.error('❌ Error updating status:', error.message);
@@ -232,4 +232,4 @@ const updateComplaintStatus = async (req, res) => {
   }
 };
 
-module.exports = { submitComplaint, getComplaints, searchComplaint, getComplaintById, updateComplaintStatus };
+module.exports = { analyzeComplaint, submitComplaint, getComplaints, searchComplaint, getComplaintById, updateComplaintStatus };

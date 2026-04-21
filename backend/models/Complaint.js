@@ -6,6 +6,13 @@ const timelineEventSchema = new mongoose.Schema({
   status: { type: String, enum: ['submitted', 'pending', 'escalated', 'resolved'], default: 'submitted' },
 }, { _id: false });
 
+const followUpSchema = new mongoose.Schema({
+  type: { type: String, enum: ['reminder', 'appeal', 'escalation'], required: true },
+  scheduledAt: { type: Date, required: true },
+  sentAt: { type: Date },
+  status: { type: String, enum: ['pending', 'sent', 'skipped'], default: 'pending' },
+}, { _id: false });
+
 // Auto-assign authority based on category
 const AUTHORITY_MAP = {
   'Road & Infrastructure': 'PWD Municipal Corporation',
@@ -85,6 +92,32 @@ const complaintSchema = new mongoose.Schema(
     timeline: {
       type: [timelineEventSchema],
       default: [],
+    },
+    // AI Processing Results (Gemini 2.0 Flash)
+    aiProcessing: {
+      category:       { type: String },
+      severity:       { type: String },
+      severityReason: { type: String },
+      severityScore:  { type: Number, default: 0 },
+      keywords:       { type: [String], default: [] },
+      summary:        { type: String },
+      confidence:     { type: Number, default: 0 },
+      authority:      { type: String },
+      evidenceFlags:  { type: [String], default: [] },
+      legalSections:  { type: [String], default: [] },
+      model:          { type: String, default: 'rule-based-fallback' },
+      processedAt:    { type: Date },
+    },
+    // Automated Follow-Ups Schedule
+    followUps: {
+      type: [followUpSchema],
+      default: [],
+    },
+    // Submission Verification
+    submissionVerification: {
+      otpVerified:   { type: Boolean, default: false },
+      captchaPassed: { type: Boolean, default: false },
+      verifiedAt:    { type: Date },
     },
   },
   {
