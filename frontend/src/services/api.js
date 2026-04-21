@@ -20,6 +20,18 @@ export async function loginUser(email, password) {
   }
 }
 
+export async function registerUser({ name, email, password, phone, gender, address, pincode, state, isBPL }) {
+  const response = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password, phone, gender, address, pincode, state, isBPL }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Registration failed');
+  return data;
+}
+
+
 // ── CONTACT FORM ────────────────────────────────────────────────
 export async function submitContactForm(formData) {
   try {
@@ -167,3 +179,69 @@ export async function checkHealth() {
     throw new Error('Backend is not reachable');
   }
 }
+
+// ── RTI PORTAL AUTOMATION ────────────────────────────────────────
+
+/** Save/update RTI portal credentials for a user */
+export async function saveRTICredentials(userId, rtiUsername, rtiPassword) {
+  const response = await fetch(`${API_BASE}/rti-portal/credentials/${userId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rtiUsername, rtiPassword }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Failed to save credentials');
+  return data;
+}
+
+/** Check if user has saved RTI portal credentials */
+export async function hasRTICredentials(userId) {
+  const response = await fetch(`${API_BASE}/rti-portal/credentials/${userId}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Error');
+  return data;
+}
+
+/** Trigger Puppeteer RTI submission for a complaint */
+export async function submitToRTIPortal(complaintId, payload) {
+  const response = await fetch(`${API_BASE}/rti-portal/submit/${complaintId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Failed to start submission');
+  return data;
+}
+
+/** Poll RTI portal submission status */
+export async function getRTISubmissionStatus(complaintId) {
+  const response = await fetch(`${API_BASE}/rti-portal/status/${complaintId}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Error fetching status');
+  return data;
+}
+
+/** After user pays, retrieve the RTI registration number */
+export async function checkRTIRegistration(complaintId, regInputHint = '') {
+  const response = await fetch(`${API_BASE}/rti-portal/check-registration/${complaintId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ regInputHint }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Error');
+  return data;
+}
+
+/** Get all RTI ministries (with optional category suggestion) */
+export async function getRTIMinistries(category = '') {
+  const url = category
+    ? `${API_BASE}/rti-portal/ministries?category=${encodeURIComponent(category)}`
+    : `${API_BASE}/rti-portal/ministries`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Error');
+  return data;
+}
+

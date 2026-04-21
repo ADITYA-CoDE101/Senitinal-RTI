@@ -32,10 +32,11 @@ app.use(cors());
 app.use('/uploads', express.static(uploadsDir));
 
 // ── ROUTES ───────────────────────────────────────────────────────
-app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/contact', require('./routes/contactRoutes'));
+app.use('/api/auth',       require('./routes/authRoutes'));
+app.use('/api/contact',    require('./routes/contactRoutes'));
 app.use('/api/complaints', require('./routes/complaintRoutes'));
-app.use('/api/dashboard', require('./routes/dashboardRoutes'));
+app.use('/api/dashboard',  require('./routes/dashboardRoutes'));
+app.use('/api/rti-portal', require('./routes/rtiPortalRoutes'));
 
 // Seed admin user
 const User = require('./models/User');
@@ -68,5 +69,12 @@ app.listen(PORT, () => {
   console.log(`   Health check:   http://localhost:${PORT}/api/health`);
   console.log(`   Contact API:    http://localhost:${PORT}/api/contact`);
   console.log(`   Complaints API: http://localhost:${PORT}/api/complaints`);
-  console.log(`   Dashboard API:  http://localhost:${PORT}/api/dashboard/stats\n`);
+  console.log(`   Dashboard API:  http://localhost:${PORT}/api/dashboard/stats`);
+  console.log(`   RTI Portal API: http://localhost:${PORT}/api/rti-portal\n`);
 });
+
+// ── GRACEFUL SHUTDOWN ─────────────────────────────────────────────
+// Close any open Puppeteer sessions on server exit
+const { cleanupAllSessions } = require('./services/rtiPortal');
+process.on('SIGINT',  async () => { await cleanupAllSessions(); process.exit(0); });
+process.on('SIGTERM', async () => { await cleanupAllSessions(); process.exit(0); });

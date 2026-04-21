@@ -20,7 +20,20 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Please add a password'],
       minlength: 6,
-      select: false, // Don't return password by default
+      select: false,
+    },
+    // Profile info — used to auto-fill RTI portal submissions
+    phone:   { type: String, default: '' },
+    gender:  { type: String, enum: ['M', 'F', 'O'], default: 'M' },
+    address: { type: String, default: '' },
+    pincode: { type: String, default: '' },
+    state:   { type: String, default: '' },
+    isBPL:   { type: Boolean, default: false },
+    // RTI Online Portal (rtionline.gov.in) credentials — stored AES-256 encrypted
+    rtiPortalCredentials: {
+      username: { type: String, select: false }, // encrypted
+      password: { type: String, select: false }, // encrypted
+      savedAt:  { type: Date },
     },
   },
   {
