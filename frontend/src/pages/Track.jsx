@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Icon from '../components/Icon'
-import { searchComplaint, getComplaints } from '../services/api'
+import { useAuth } from '../context/AuthContext'
+import { searchComplaint, getComplaints, saveRTICredentials, submitToRTIPortal, getRTISubmissionStatus, checkRTIRegistration, getRTIMinistries } from '../services/api'
 
 /* ── TOKENS ──────────────────────────────────────────────────── */
 const BG   = '#07090f'
@@ -34,6 +35,262 @@ function StatusPill({ status }) {
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.color }} />
       {s.label}
     </span>
+  )
+}
+
+/* ── RTI PORTAL STATUS BADGE ─────────────────────────────────── */
+const RTI_STATUS_CONFIG = {
+  not_submitted:   { label: 'Not Submitted',  color: '#64748b' },
+  in_progress:     { label: 'In Progress…',   color: '#f59e0b' },
+  pending_payment: { label: 'Pending Payment', color: '#a78bfa' },
+  submitted:       { label: 'Submitted ✓',    color: '#0ec98c' },
+  failed:          { label: 'Failed',          color: '#ef4444' },
+}
+
+function RTIStatusBadge({ status }) {
+  const cfg = RTI_STATUS_CONFIG[status] || RTI_STATUS_CONFIG.not_submitted
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      fontFamily: "'Space Mono', monospace", fontSize: 9, fontWeight: 700,
+      padding: '3px 10px', borderRadius: 5, letterSpacing: 1, textTransform: 'uppercase',
+      background: `${cfg.color}18`, color: cfg.color, border: `1px solid ${cfg.color}30`,
+    }}>
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.color, animation: status === 'in_progress' ? 'pulse 1.4s infinite' : 'none' }} />
+      RTI: {cfg.label}
+    </span>
+  )
+}
+
+/* ── RTI SUBMIT PANEL ────────────────────────────────────────── */
+// Hardcoded demo userId — replace with auth context in production
+const DEMO_USER_ID = 'demo_user'
+
+function RTISubmitPanel({ complaint }) {
+  const { user } = useAuth()
+  const [phase, setPhase]           = useState('idle')   // idle | setup | form | submitting
+  const [ministries, setMinistries] = useState([])
+  const [suggested, setSuggested]   = useState('')
+  const [selectedMinistry, setSelectedMinistry] = useState('')
+  const [rtiStatus, setRtiStatus]   = useState(complaint.rtiPortalSubmission?.status || 'not_submitted')
+  const [regNum, setRegNum]         = useState(complaint.rtiPortalSubmission?.registrationNumber || '')
+  const [payLink, setPayLink]       = useState(complaint.rtiPortalSubmission?.paymentLink || '')
+  const [error, setError]           = useState('')
+  const [checkingReg, setCheckingReg] = useState(false)
+  const [regHint, setRegHint]       = useState('')
+
+  // Check if user profile is complete for RTI
+  const profileComplete = user && user.phone && user.address && user.pincode && user.state
+
+  // Sync RTI status from DB every 8s when in_progress
+  useEffect(() => {
+    if (rtiStatus !== 'in_progress') return
+    const iv = setInterval(async () => {
+      try {
+        const res = await getRTISubmissionStatus(complaint._id)
+        const s = res.rtiPortalSubmission
+        setRtiStatus(s.status)
+        if (s.paymentLink) setPayLink(s.paymentLink)
+        if (s.status !== 'in_progress') clearInterval(iv)
+      } catch (_) {}
+    }, 8000)
+    return () => clearInterval(iv)
+  }, [rtiStatus, complaint._id])
+
+  // Load ministries on first open
+  const loadMinistries = useCallback(async () => {
+    try {
+      const res = await getRTIMinistries(complaint.category)
+      setMinistries(res.ministries)
+      setSuggested(res.suggested || '')
+      setSelectedMinistry(res.suggested || res.ministries[0] || '')
+    } catch (_) {}
+  }, [complaint.category])
+
+  // Already submitted — just show status
+  if (rtiStatus === 'submitted' || rtiStatus === 'pending_payment') {
+    return (
+      <div style={panelStyle}>
+        <div style={panelHeader}>
+          <RTIStatusBadge status={rtiStatus} />
+          {complaint.rtiPortalSubmission?.ministry && (
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginLeft: 8 }}>
+              → {complaint.rtiPortalSubmission.ministry}
+            </span>
+          )}
+        </div>
+
+        {rtiStatus === 'pending_payment' && payLink && (
+          <div style={{ marginTop: 16 }}>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 12 }}>
+              A browser window opened for submission. Complete the ₹10 payment to finalise your RTI.
+            </p>
+            <a href={payLink} target="_blank" rel="noreferrer"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, background: '#a78bfa', color: '#fff', fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>
+              <Icon name="externalLink" size={14} color="#fff" sw={2} /> Open Payment Page
+            </a>
+            <div style={{ marginTop: 20, borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 16 }}>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 10 }}>After payment, enter your transaction reference to retrieve your RTI number:</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={regHint} onChange={e => setRegHint(e.target.value)}
+                  placeholder="Transaction / reg number (optional)"
+                  style={inputStyle}
+                />
+                <button disabled={checkingReg} onClick={async () => {
+                  setCheckingReg(true)
+                  try {
+                    const res = await checkRTIRegistration(complaint._id, regHint)
+                    if (res.registrationNumber) { setRegNum(res.registrationNumber); setRtiStatus('submitted') }
+                    else setError('Not available yet — try again in 10 minutes.')
+                  } catch (e) { setError(e.message) }
+                  setCheckingReg(false)
+                }} style={btnPrimary}>{checkingReg ? 'Checking…' : 'Check'}</button>
+              </div>
+              {error && <p style={{ color: '#ef4444', fontSize: 12, marginTop: 8 }}>{error}</p>}
+            </div>
+          </div>
+        )}
+
+        {rtiStatus === 'submitted' && regNum && (
+          <div style={{ marginTop: 14, padding: '12px 16px', background: '#0ec98c12', border: '1px solid #0ec98c30', borderRadius: 10 }}>
+            <p style={{ fontSize: 12, color: '#0ec98c', fontFamily: "'Space Mono', monospace" }}>
+              RTI Registration: <strong>{regNum}</strong>
+            </p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── IDLE phase — show button ──────────────────────────────────
+  if (phase === 'idle') {
+    if (!complaint.legalDraft) return null // no draft = no button
+    return (
+      <div style={panelStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 4 }}>Submit to RTI Online Portal</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>Auto-fill and submit your RTI draft to rtionline.gov.in</div>
+          </div>
+          <button onClick={() => { setPhase('form'); loadMinistries() }} style={btnPrimary}>
+            <Icon name="send" size={14} color="#fff" sw={2} /> Submit RTI
+          </button>
+        </div>
+        {!profileComplete && (
+          <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(245,158,11,0.08)', borderRadius: 8, border: '1px solid rgba(245,158,11,0.2)' }}>
+            <p style={{ fontSize: 12, color: '#f59e0b' }}>⚠ Your profile is incomplete. Please update phone, address, pincode and state in your account settings for auto-fill to work.</p>
+          </div>
+        )}
+        {rtiStatus === 'failed' && <p style={{ marginTop: 12, fontSize: 12, color: '#ef4444' }}>Previous attempt failed. You can retry.</p>}
+      </div>
+    )
+  }
+
+  // ── FORM — ministry selection only (profile data auto-fills rest) ──────
+  if (phase === 'form') {
+    return (
+      <div style={panelStyle}>
+        <div style={{ ...panelHeader, marginBottom: 16 }}>
+          <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: '#fff' }}>Confirm Submission Details</span>
+          <button onClick={() => setPhase('idle')} style={btnGhost}>✕ Cancel</button>
+        </div>
+
+        {/* Profile summary — pulled from user account */}
+        <div style={{ marginBottom: 16, padding: '14px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.25)', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>From Your Profile</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12 }}>
+            <ProfileRow label="Name"    value={user?.name} />
+            <ProfileRow label="Email"   value={user?.email} />
+            <ProfileRow label="Phone"   value={user?.phone} />
+            <ProfileRow label="Gender"  value={{ M: 'Male', F: 'Female', O: 'Other' }[user?.gender] || user?.gender} />
+            <ProfileRow label="Address" value={user?.address} span />
+            <ProfileRow label="Pincode" value={user?.pincode} />
+            <ProfileRow label="State"   value={user?.state} />
+            <ProfileRow label="BPL"     value={user?.isBPL ? 'Yes (no fee)' : 'No'} />
+          </div>
+        </div>
+
+        {/* Ministry selector */}
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Ministry / Public Authority *</label>
+          <select value={selectedMinistry} onChange={e => setSelectedMinistry(e.target.value)} style={inputStyle}>
+            <option value="">— Select Ministry —</option>
+            {ministries.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          {suggested && <p style={{ fontSize: 11, color: '#a78bfa', marginTop: 4 }}>Suggested for {complaint.category}: {suggested}</p>}
+        </div>
+
+        <div style={{ marginBottom: 14, padding: '10px 14px', background: 'rgba(167,139,250,0.07)', borderRadius: 8, border: '1px solid rgba(167,139,250,0.15)' }}>
+          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>
+            ⚠️ A browser window will open. Solve the CAPTCHA, enter the OTP sent to your phone/email, and the form will be auto-filled. Pay ₹10 to complete.
+          </p>
+        </div>
+
+        {error && <p style={{ color: '#ef4444', fontSize: 12, marginTop: 8 }}>{error}</p>}
+
+        <button disabled={!selectedMinistry} onClick={async () => {
+          setPhase('submitting'); setError('')
+          try {
+            await submitToRTIPortal(complaint._id, {
+              userId: user?._id || user?.id || DEMO_USER_ID,
+              ministry: selectedMinistry,
+            })
+            setRtiStatus('in_progress')
+            setPhase('idle')
+          } catch (e) { setError(e.message); setPhase('form') }
+        }} style={{ ...btnPrimary, opacity: !selectedMinistry ? 0.5 : 1 }}>
+          <Icon name="send" size={14} color="#fff" sw={2} /> Launch RTI Submission
+        </button>
+      </div>
+    )
+  }
+
+  if (phase === 'submitting') {
+    return (
+      <div style={{ ...panelStyle, textAlign: 'center', padding: '32px' }}>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', animation: 'pulse 1.5s infinite' }}>🤖 Opening browser & logging in to RTI portal…</div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginTop: 8 }}>Please solve the CAPTCHA in the window that appears.</div>
+      </div>
+    )
+  }
+
+  return null
+}
+
+// ── Panel micro-styles ────────────────────────────────────────────
+const panelStyle = {
+  marginTop: 20, padding: '20px 24px',
+  background: 'rgba(167,139,250,0.05)', borderRadius: 14,
+  border: '1px solid rgba(167,139,250,0.15)',
+}
+const panelHeader = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }
+const inputStyle = {
+  width: '100%', padding: '9px 13px', borderRadius: 8,
+  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+  color: '#fff', fontSize: 13, outline: 'none', fontFamily: "'DM Sans', sans-serif",
+  boxSizing: 'border-box',
+}
+const btnPrimary = {
+  display: 'inline-flex', alignItems: 'center', gap: 7,
+  padding: '9px 18px', borderRadius: 9, border: 'none',
+  background: 'linear-gradient(135deg,#7c3aed,#a78bfa)',
+  color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+  fontFamily: "'Syne', sans-serif",
+}
+const btnGhost = {
+  padding: '8px 14px', borderRadius: 8,
+  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+  color: 'rgba(255,255,255,0.5)', fontSize: 12, cursor: 'pointer',
+}
+const labelStyle = { display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 5, fontWeight: 600, letterSpacing: 0.5 }
+
+function ProfileRow({ label, value, span }) {
+  return (
+    <div style={{ gridColumn: span ? '1/-1' : undefined }}>
+      <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>{label}: </span>
+      <span style={{ color: value ? '#fff' : '#ef4444', fontWeight: 500 }}>{value || '⚠ Not set'}</span>
+    </div>
   )
 }
 
@@ -130,6 +387,9 @@ function ComplaintCard({ complaint, isOpen, onToggle }) {
               </button>
             </div>
           )}
+
+          {/* ── RTI Portal Submit Panel ── */}
+          <RTISubmitPanel complaint={complaint} />
 
           {/* Status pipeline */}
           <div style={{ padding: '24px 0' }}>

@@ -119,6 +119,21 @@ const complaintSchema = new mongoose.Schema(
       captchaPassed: { type: Boolean, default: false },
       verifiedAt:    { type: Date },
     },
+    // RTI Portal Submission (rtionline.gov.in and future portals)
+    rtiPortalSubmission: {
+      status: {
+        type: String,
+        enum: ['not_submitted', 'in_progress', 'pending_payment', 'submitted', 'failed'],
+        default: 'not_submitted',
+      },
+      portal:             { type: String, default: 'rtionline.gov.in' },
+      registrationNumber: { type: String, default: '' },   // assigned after payment
+      paymentLink:        { type: String, default: '' },   // deep link to payment page
+      ministry:           { type: String, default: '' },   // selected ministry
+      submittedAt:        { type: Date },
+      errorMessage:       { type: String, default: '' },
+      lastCheckedAt:      { type: Date },
+    },
   },
   {
     timestamps: true,

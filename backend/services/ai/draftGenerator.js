@@ -6,8 +6,9 @@
  * Identical prompt, model list, key rotation, and fallback template as original aiService.js generateRTIDraft().
  */
 
-const { callGemini } = require('./geminiClient');
-const { KEYS }       = require('./config');
+const { callGemini }             = require('./geminiClient');
+const { KEYS }                   = require('./config');
+const { getEssentialLegalContext, TIMELINES, FEE_STRUCTURE } = require('./rtiLegalKnowledge');
 
 // ── Per-category RTI information requests (unchanged) ─────────────
 const CATEGORY_QUESTIONS = {
@@ -147,14 +148,20 @@ async function generateRTIDraft(data, ai) {
   const hasGeo      = !!(data.geoLat || data.geoCoords?.lat);
   const hasImage    = !!(data.imageFile || data.imageUrl);
 
-  // ── IDENTICAL prompt to original ──
+  // ── Inject static legal knowledge (replaces RAG) ──
+  const legalContext = getEssentialLegalContext();
+
   const prompt = `You are a senior Indian legal expert and RTI (Right to Information) practitioner with 20 years of experience drafting RTI applications for Indian citizens.
+
+The following is the authoritative legal reference from the Right to Information Act, 2005. Use it to ensure your draft is legally accurate:
+
+${legalContext}
 
 Write a complete, formal RTI application based on the following complaint. The application must:
 - Be written entirely in the voice of a concerned Indian citizen — first person, formal, dignified
 - Follow the exact format of an authentic RTI application under the RTI Act, 2005
 - Sound completely natural and human — NO robotic phrasing, no lists of metadata, no technical labels
-- Include all standard RTI legal elements: proper address block, subject line, detailed description, numbered information requests (at least 4), reference period, fee statement, appeal warning, and sign-off
+- Include all standard RTI legal elements: proper address block, subject line, detailed description, numbered information requests (at least 4), reference period, fee statement (Rs. 10/- as per RTI Fee Rules), appeal warning citing Section 19(1), and sign-off
 - The specific information requested must be precise, legally sound, and directly relevant to the complaint
 - Use professional Indian legal English (similar to how a practising advocate would draft it)
 - CRITICAL: Do NOT include any AI references, system names, tracking codes, confidence scores, or any technical metadata whatsoever
