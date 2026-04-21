@@ -1,375 +1,545 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import Icon from '../components/Icon'
-import { submitComplaint } from '../services/api'
+import { analyzeComplaint, submitComplaint } from '../services/api'
+import CameraCapture from '../components/mobile/CameraCapture'
+import VoiceRecorder from '../components/mobile/VoiceRecorder'
+import GeoDetect     from '../components/mobile/GeoDetect'
 
-/* ── TOKENS ──────────────────────────────────────────────────── */
-const BG   = '#07090f'
-const SURF = '#0d1117'
-const BDIM = 'rgba(255,255,255,0.06)'
+const BG = '#07090f', SURF = '#0d1117', BDIM = 'rgba(255,255,255,0.06)'
+const BLUE = '#1a56e8', CYAN = '#00c2e0', GREEN = '#0ec98c', AMBER = '#f59e0b', RED = '#ef4444', PURPLE = '#e04dff'
 
-const ISSUE_CATEGORIES = [
-  'Road & Infrastructure', 'Water & Sanitation', 'Electricity & Power',
-  'Municipal Services', 'Education', 'Healthcare',
-  'Land & Property', 'Public Transport', 'Environment', 'Other',
+const CATEGORIES = ['Road & Infrastructure','Water & Sanitation','Electricity & Power','Municipal Services','Education','Healthcare','Land & Property','Public Transport','Environment','Other']
+const SEV_COLOR = { HIGH: RED, MEDIUM: AMBER, LOW: GREEN }
+const EVIDENCE_LABELS = { has_image:'📷 Image Evidence', image_analyzed:'🔍 Image Analyzed by AI', has_geo:'📍 GPS Tagged', has_voice:'🎙️ Voice Input', detailed_description:'📝 Detailed Text' }
+
+const STEPS = [
+  { id:'input',    label:'Input',           icon:'file' },
+  { id:'ai',       label:'AI Processing',   icon:'cpu' },
+  { id:'verify',   label:'Verify & Draft',  icon:'shield' },
+  { id:'done',     label:'Submitted',       icon:'check' },
 ]
 
-const PIPELINE_PREVIEW = [
-  { icon: 'cpu',   label: 'AI Processing',        color: '#3b74ff', sub: 'Auto-classification & severity scoring' },
-  { icon: 'file',  label: 'Complaint Generation',  color: '#f59e0b', sub: 'Legal RTI draft with evidence' },
-  { icon: 'route', label: 'Smart Routing',          color: '#0ec98c', sub: 'Auto-identifies correct authority' },
-  { icon: 'send',  label: 'Submission',             color: '#e04dff', sub: 'Portal auto-fill & verification' },
-]
-
-const CATEGORY_QUESTIONS = {
-  'Road & Infrastructure': [
-    'Please provide the current status of the above-mentioned road/infrastructure issue.',
-    'Provide copies of any field reports, engineering assessments, or inspection notes related to this site conducted in the last 12 months.',
-    'Provide details of the budget allocated and expenses incurred for maintenance at this location during the current financial year.',
-    'Provide the names and designations of the officers responsible for the maintenance and oversight of this specific area.'
-  ],
-  'Water & Sanitation': [
-    'Provide the latest water quality test reports or sewer inspection logs for this locality.',
-    'Detail the scheduled frequency of maintenance for the water/sanitation infrastructure in this area.',
-    'Provide information on any pending work orders or sanctions for repairs at this location.',
-    'Provide the names and designations of the junior engineers and contractors responsible for this ward.'
-  ],
-  'Electricity & Power': [
-    'Provide a record of power outages and voltage fluctuations logged for this area in the past 6 months.',
-    'Provide details of any pending transformer upgrades or cable maintenance approved for this locality.',
-    'Status of street light maintenance requests logged for this specific lane in the last 90 days.',
-    'Provide the contact details and designations of the local assistant engineer (Power).'
-  ],
-  'Healthcare': [
-    'Provide details of the stock of essential medicines available at the local primary health center.',
-    'Provide the duty roster of doctors and paramedical staff assigned to this facility for the current month.',
-    'Provide information on the budget allocated for equipment maintenance at this health center.',
-    'Provide the status of the Citizen' + "'" + 's Charter and grievance redressal mechanism at this facility.'
-  ],
-  'Education': [
-    'Provide information on the teacher-student ratio at the specified government educational institution.',
-    'Provide the details of funds received and utilized under Samagra Shiksha or other schemes for this school.',
-    'Provide a copy of the latest infrastructure audit or building safety report for this school.',
-    'Details of the midday meal provision and quality audits conducted in the current quarter.'
-  ]
+function StepBar({ current }) {
+  const idx = STEPS.findIndex(s => s.id === current)
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:0, marginBottom:36 }}>
+      {STEPS.map((s, i) => {
+        const done = i < idx, active = i === idx
+        const col = done ? GREEN : active ? CYAN : 'rgba(255,255,255,0.15)'
+        return (
+          <React.Fragment key={s.id}>
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, minWidth:80 }}>
+              <div style={{ width:36, height:36, borderRadius:'50%', background: active?`${CYAN}20`:done?`${GREEN}20`:'rgba(255,255,255,0.04)', border:`2px solid ${col}`, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.3s' }}>
+                <Icon name={done?'check':s.icon} size={15} color={col} sw={2} />
+              </div>
+              <span style={{ fontSize:10, fontWeight:700, color:col, fontFamily:"'Space Mono',monospace", textTransform:'uppercase', letterSpacing:0.5 }}>{s.label}</span>
+            </div>
+            {i < STEPS.length-1 && <div style={{ flex:1, height:2, background: done?GREEN:BDIM, margin:'0 4px', marginBottom:20, transition:'background 0.4s' }} />}
+          </React.Fragment>
+        )
+      })}
+    </div>
+  )
 }
 
-/* ── CATEGORY CHIP ───────────────────────────────────────────── */
 function CategoryChip({ label, active, onClick }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: '8px 14px', borderRadius: 10,
-        background: active ? 'rgba(26,86,232,0.2)' : 'rgba(255,255,255,0.03)',
-        color: active ? '#00c2e0' : 'rgba(255,255,255,0.4)',
-        border: `1px solid ${active ? '#1a56e8' : 'rgba(255,255,255,0.08)'}`,
-        cursor: 'pointer', fontSize: 11, fontWeight: 700, transition: 'all 0.25s',
-        fontFamily: "'Space Mono', monospace", textTransform: 'uppercase', letterSpacing: 0.5
-      }}
-    >
+    <button onClick={onClick} style={{ padding:'7px 13px', borderRadius:9, background:active?'rgba(26,86,232,0.2)':'rgba(255,255,255,0.03)', color:active?CYAN:'rgba(255,255,255,0.4)', border:`1px solid ${active?BLUE:'rgba(255,255,255,0.08)'}`, cursor:'pointer', fontSize:11, fontWeight:700, transition:'all 0.2s', fontFamily:"'Space Mono',monospace", textTransform:'uppercase', letterSpacing:0.5 }}>
       {label}
     </button>
   )
 }
 
-/* ── INPUT MODE TAB ──────────────────────────────────────────── */
 function ModeTab({ icon, label, active, onClick }) {
-  const [hovered, setHovered] = useState(false)
+  const [h, sh] = useState(false)
   return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-        padding: '20px 16px', borderRadius: 14, cursor: 'pointer',
-        background: active ? 'rgba(26,86,232,0.15)' : hovered ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.025)',
-        border: `1.5px solid ${active ? 'rgba(26,86,232,0.5)' : hovered ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)'}`,
-        transition: 'all 0.25s',
-        transform: active ? 'translateY(-2px)' : 'none',
-        boxShadow: active ? '0 6px 20px rgba(26,86,232,0.2)' : 'none',
-      }}
-    >
-      <div style={{
-        width: 44, height: 44, borderRadius: 11,
-        background: active ? 'rgba(26,86,232,0.25)' : 'rgba(255,255,255,0.06)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.25s',
-      }}>
-        <Icon name={icon} size={20} color={active ? '#00c2e0' : 'rgba(255,255,255,0.4)'} sw={1.8} />
+    <button onClick={onClick} onMouseEnter={()=>sh(true)} onMouseLeave={()=>sh(false)} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:8, padding:'18px 12px', borderRadius:14, cursor:'pointer', background:active?'rgba(26,86,232,0.15)':h?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.025)', border:`1.5px solid ${active?'rgba(26,86,232,0.5)':h?'rgba(255,255,255,0.12)':BDIM}`, transition:'all 0.2s', transform:active?'translateY(-2px)':'none', boxShadow:active?'0 6px 20px rgba(26,86,232,0.2)':'none' }}>
+      <div style={{ width:40, height:40, borderRadius:10, background:active?'rgba(26,86,232,0.25)':'rgba(255,255,255,0.06)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <Icon name={icon} size={18} color={active?CYAN:'rgba(255,255,255,0.4)'} sw={1.8} />
       </div>
-      <span style={{
-        fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 12,
-        color: active ? '#fff' : 'rgba(255,255,255,0.5)', transition: 'color 0.2s',
-      }}>{label}</span>
+      <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:11, color:active?'#fff':'rgba(255,255,255,0.5)' }}>{label}</span>
     </button>
   )
 }
 
-/* ── FILE COMPLAINT PAGE ─────────────────────────────────────── */
+function ConfidenceMeter({ value }) {
+  const col = value >= 75 ? GREEN : value >= 50 ? AMBER : RED
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
+        <span style={{ fontSize:12, color:'rgba(255,255,255,0.5)', fontFamily:"'Space Mono',monospace" }}>AI Confidence</span>
+        <span style={{ fontSize:14, fontWeight:800, color:col, fontFamily:"'Syne',sans-serif" }}>{value}%</span>
+      </div>
+      <div style={{ height:8, borderRadius:4, background:'rgba(255,255,255,0.06)', overflow:'hidden' }}>
+        <div style={{ height:'100%', width:`${value}%`, background:`linear-gradient(90deg,${col}88,${col})`, borderRadius:4, transition:'width 1s ease' }} />
+      </div>
+    </div>
+  )
+}
+
 export default function FileComplaint({ navigate }) {
-  const [mode, setMode] = useState('text')
-  const [form, setForm] = useState({ description: '', category: ISSUE_CATEGORIES[0], location: '' })
-  const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [apiError, setApiError] = useState('')
-  const [result, setResult] = useState(null)
-  const [showLegalReview, setShowLegalReview] = useState(false)
-  const [legalDraft, setLegalDraft] = useState('')
-
-  // Image upload state
-  const [imageFile, setImageFile] = useState(null)
-  const [imagePreview, setImagePreview] = useState(null)
-  const [dragOver, setDragOver] = useState(false)
-  const fileInputRef = useRef(null)
-
-  // Voice state
-  const [isRecording, setIsRecording] = useState(false)
+  // ── Core state ──
+  const [step,          setStep]          = useState('input')
+  const [mode,          setMode]          = useState('text')
+  const [form,          setForm]          = useState({ description:'', category:CATEGORIES[0], location:'' })
+  const [imageFile,     setImageFile]     = useState(null)
+  const [imagePreview,  setImagePreview]  = useState(null)
   const [voiceTranscript, setVoiceTranscript] = useState('')
-  const recognitionRef = useRef(null)
+  const [geoCoords,     setGeoCoords]     = useState(null)   // { lat, lng } — set by GeoDetect callback
 
-  // Geo state
-  const [geoCoords, setGeoCoords] = useState(null)
-  const [geoLoading, setGeoLoading] = useState(false)
-  const [geoError, setGeoError] = useState('')
+  // ── AI & flow state ──
+  const [aiResult,      setAiResult]      = useState(null)
+  const [aiLoading,     setAiLoading]     = useState(false)
+  const [legalDraft,    setLegalDraft]    = useState('')
+  const [showDraft,     setShowDraft]     = useState(false)
 
-  const handle = (key, val) => { setForm(f => ({ ...f, [key]: val })); setApiError('') }
+  // ── Verification state ──
+  const [otp,           setOtp]           = useState('')
+  const [otpSent,       setOtpSent]       = useState(false)
+  const [otpVerified,   setOtpVerified]   = useState(false)
+  const [captchaQ,      setCaptchaQ]      = useState(null)
+  const [captchaAns,    setCaptchaAns]    = useState('')
+  const [captchaPassed, setCaptchaPassed] = useState(false)
 
-  // ── LEGAL DRAFT GENERATOR ──
-  const generatePreviewDraft = () => {
-    const date = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-    const content = mode === 'voice' ? voiceTranscript : form.description;
-    
-    return `APPLICATION FOR INFORMATION UNDER THE RTI ACT, 2005
+  // ── Result & error state ──
+  const [submitting,    setSubmitting]    = useState(false)
+  const [result,        setResult]        = useState(null)
+  const [error,         setError]         = useState('')
 
-To,
-The Public Information Officer (PIO),
-[Concerned Authority for ${form.category}],
-Government of India / State Government.
+  const handle = (k, v) => { setForm(f=>({...f,[k]:v})); setError('') }
 
-Date: ${date}
+  useEffect(() => {
+    const a = Math.floor(Math.random()*9)+1, b = Math.floor(Math.random()*9)+1
+    setCaptchaQ({ a, b, ans: a+b })
+  }, [])
 
-Subject: Request for Information under the Right to Information Act, 2005 - Regarding ${form.category} at ${form.location || '[Specified Location]'}.
-
-Respected Sir/Madam,
-
-I, the undersigned, am a citizen of India. I require information and formal redressal regarding the following matter under the RTI Act, 2005:
-
-1. DESCRIPTION OF MATTER:
-   ${content}
-
-2. SPECIFIC INFORMATION REQUIRED:
-${(CATEGORY_QUESTIONS[form.category] || CATEGORY_QUESTIONS['Road & Infrastructure']).map((q, i) => `   (${String.fromCharCode(97 + i)}) ${q}`).join('\n')}
-
-3. DURATION:
-   The information required pertains to the period from ${new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toLocaleDateString()} to ${date}.
-
-DECLARATION:
-I state that the information sought does not fall within the restrictions contained in Section 8 and 9 of the RTI Act and to the best of my knowledge it pertains to your office.
-
-FEE DETAILS:
-I am attaching the requisite RTI application fee. (Note: System-automated digital payment reference included).
-
-Yours faithfully,
-[Digitally Signed via Sentinel-RTI]
-Contact: Registered User
-`;
-  }
-
-  // ── PREVIEW LEGAL DRAFT ──
-  const previewLegalDraft = () => {
-    if (mode === 'text' && !form.description.trim()) { setApiError('Please describe your issue.'); return }
-    if (mode === 'image' && !imageFile) { setApiError('Please upload an image.'); return }
-    if (mode === 'voice' && !voiceTranscript.trim()) { setApiError('Please record your complaint.'); return }
-    if (mode === 'location' && !geoCoords) { setApiError('Please detect location first.'); return }
-
-    setLegalDraft(generatePreviewDraft())
-    setShowLegalReview(true)
-  }
-
-  // ── IMAGE HANDLERS ──
-  const handleImageSelect = (file) => {
-    if (!file) return
+  // ── Image handler (passed to CameraCapture as prop) ──
+  const onImage = file => {
+    if (!file) { setImageFile(null); setImagePreview(null); return }
     setImageFile(file)
-    const reader = new FileReader()
-    reader.onload = (e) => setImagePreview(e.target.result)
-    reader.readAsDataURL(file)
-    if (!form.description) handle('description', `Evidence image uploaded: ${file.name}`)
-    // Auto-enable geo-tagging for images
-    if (!geoCoords) detectLocation()
+    const r = new FileReader()
+    r.onload = e => setImagePreview(e.target.result)
+    r.readAsDataURL(file)
+    if (!form.description) handle('description', `Evidence image: ${file.name}`)
   }
 
-  const handleDrop = (e) => { e.preventDefault(); setDragOver(false); const file = e.dataTransfer.files[0]; if (file) handleImageSelect(file) }
 
-  // ── VOICE HANDLERS ──
-  const startRecording = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) { setApiError('Speech recognition not supported.'); return }
-    const recognition = new SpeechRecognition()
-    recognition.continuous = true; recognition.interimResults = true; recognition.lang = 'en-IN'
-    let finalTranscript = voiceTranscript
-    recognition.onresult = (event) => {
-      let interim = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript
-        if (event.results[i].isFinal) finalTranscript += transcript + ' '; else interim += transcript
-      }
-      setVoiceTranscript(finalTranscript + interim)
-    }
-    recognition.onerror = () => setIsRecording(false)
-    recognition.onend = () => setIsRecording(false)
-    recognitionRef.current = recognition; recognition.start(); setIsRecording(true); setApiError('')
-  }
-  const stopRecording = () => { if (recognitionRef.current) { recognitionRef.current.stop(); setIsRecording(false) } }
-
-  // ── GEO HANDLER ──
-  const detectLocation = () => {
-    if (!navigator.geolocation) { setGeoError('Geolocation not supported.'); return }
-    setGeoLoading(true); setGeoError('')
-    navigator.geolocation.getCurrentPosition(
-      (pos) => { const { latitude, longitude } = pos.coords; setGeoCoords({ lat: latitude, lng: longitude }); handle('location', `${latitude.toFixed(6)}°N, ${longitude.toFixed(6)}°E`); setGeoLoading(false) },
-      (err) => { setGeoError(err.message); setGeoLoading(false) },
-      { enableHighAccuracy: true, timeout: 10000 }
-    )
-  }
-
-  // ── SUBMIT ──
-  const submit = async () => {
-    setSubmitting(true)
-    setApiError('')
+  // ── Step 1 → AI ──
+  const runAI = async () => {
+    const desc = mode==='voice' ? voiceTranscript : form.description
+    if (!desc?.trim() && !imageFile && !geoCoords) { setError('Please provide your complaint details.'); return }
+    setAiLoading(true); setError('')
     try {
-      const payload = {
-        description: mode === 'voice' ? voiceTranscript : form.description,
-        category: form.category,
-        location: form.location,
-        inputMode: mode,
-        imageFile: mode === 'image' ? imageFile : null,
-        voiceTranscript: mode === 'voice' ? voiceTranscript : '',
-        geoLat: geoCoords?.lat,
-        geoLng: geoCoords?.lng,
-        legalDraft: legalDraft, // Send the approved draft to backend
-      }
-      const res = await submitComplaint(payload)
-      setResult(res.data)
-      setSubmitted(true)
-    } catch (error) {
-      setApiError(error.message || 'Failed to submit.')
-    }
+      const res = await analyzeComplaint({ description:desc, category:form.category, location:form.location, inputMode:mode, voiceTranscript, geoLat:geoCoords?.lat, geoLng:geoCoords?.lng, imageFile: mode==='image'?imageFile:null })
+      setAiResult(res.data)
+      setStep('ai')
+    } catch(e) { setError(e.message||'AI analysis failed') }
+    setAiLoading(false)
+  }
+
+  // ── OTP Mock ──
+  const sendOTP = () => { setOtpSent(true); setError('') }
+  const verifyOTP = () => { if(otp==='123456'){setOtpVerified(true)}else{setError('Invalid OTP. Use 123456 for demo.')} }
+
+  // ── CAPTCHA ──
+  const checkCaptcha = () => { if(parseInt(captchaAns)===captchaQ?.ans){setCaptchaPassed(true)}else{setError('Wrong answer. Try again.'); setCaptchaAns('')} }
+
+  // ── Submit ──
+  const doSubmit = async () => {
+    if (!otpVerified) { setError('Please verify OTP first.'); return }
+    if (!captchaPassed) { setError('Please solve the CAPTCHA.'); return }
+    setSubmitting(true); setError('')
+    try {
+      const desc = mode==='voice' ? voiceTranscript : form.description
+      const res = await submitComplaint({ description:desc, category:form.category, location:form.location, inputMode:mode, imageFile: mode==='image'?imageFile:null, voiceTranscript: mode==='voice'?voiceTranscript:'', geoLat:geoCoords?.lat, geoLng:geoCoords?.lng, legalDraft, otpVerified, captchaPassed })
+      setResult(res.data); setStep('done')
+    } catch(e) { setError(e.message||'Submission failed') }
     setSubmitting(false)
   }
 
   return (
-    <div className="page-enter" style={{ background: BG, minHeight: '100vh', color: '#fff' }}>
-
-      {/* Hero Section */}
-      <section style={{ position: 'relative', overflow: 'hidden', padding: '64px 48px 48px' }}>
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'linear-gradient(rgba(26,86,232,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(26,86,232,0.04) 1px,transparent 1px)', backgroundSize: '64px 64px' }} />
-        <div style={{ maxWidth: 1200, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, color: '#00c2e0', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#00c2e0', animation: 'pulse 1.6s infinite' }} />
-            Legal Conversion Pipeline
+    <div className="page-enter" style={{ background:BG, minHeight:'100vh', color:'#fff' }}>
+      {/* Hero */}
+      <section style={{ position:'relative', overflow:'hidden', padding:'56px 48px 32px' }}>
+        <div style={{ position:'absolute', inset:0, pointerEvents:'none', backgroundImage:`linear-gradient(${BLUE}08 1px,transparent 1px),linear-gradient(90deg,${BLUE}08 1px,transparent 1px)`, backgroundSize:'64px 64px' }} />
+        <div style={{ maxWidth:1100, margin:'0 auto', position:'relative', zIndex:1 }}>
+          <div style={{ display:'inline-flex', alignItems:'center', gap:8, fontFamily:"'Space Mono',monospace", fontSize:10, fontWeight:700, color:CYAN, letterSpacing:2, textTransform:'uppercase', marginBottom:16 }}>
+            <span style={{ width:7, height:7, borderRadius:'50%', background:CYAN, animation:'pulse 1.6s infinite' }} /> AI-Powered RTI Pipeline
           </div>
-          <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 'clamp(36px, 5vw, 56px)', lineHeight: 1.08, letterSpacing: '-2px', marginBottom: 14 }}>
-            {showLegalReview ? 'Legal Draft ' : 'File Your '} 
-            <span style={{ background: 'linear-gradient(90deg,#1a56e8,#00c2e0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-              {showLegalReview ? 'Approval' : 'Complaint'}
-            </span>
+          <h1 style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:'clamp(32px,4.5vw,52px)', lineHeight:1.08, letterSpacing:'-2px', marginBottom:8 }}>
+            File Your <span style={{ background:`linear-gradient(90deg,${BLUE},${CYAN})`, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>Complaint</span>
           </h1>
+          <p style={{ fontSize:15, color:'rgba(255,255,255,0.4)', maxWidth:480, lineHeight:1.7 }}>Gemini 2.0 Flash analyzes, classifies, and drafts your RTI in seconds.</p>
         </div>
       </section>
 
-      <section style={{ maxWidth: 1200, margin: '0 auto', padding: '0 48px 80px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 40, alignItems: 'start' }}>
+      <section style={{ maxWidth:1100, margin:'0 auto', padding:'0 48px 80px' }}>
+        <StepBar current={step} />
 
-          {/* LEFT CONTENT */}
-          <div>
-            {submitted ? (
-              <div style={{ background: SURF, borderRadius: 20, border: `1px solid ${BDIM}`, padding: '64px 48px', textAlign: 'center' }}>
-                <div style={{ width: 80, height: 80, borderRadius: '50%', margin: '0 auto 24px', background: 'rgba(14,201,140,0.15)', border: '2px solid rgba(14,201,140,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="check" size={36} color="#0ec98c" sw={2.5} />
+        {/* ── STEP 1: INPUT ── */}
+        {step==='input' && (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 340px', gap:32, alignItems:'start' }}>
+            <div style={{ background:SURF, borderRadius:20, border:`1px solid ${BDIM}`, padding:28 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:12 }}>Department</div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:24 }}>
+                {CATEGORIES.map(c => <CategoryChip key={c} label={c} active={form.category===c} onClick={()=>handle('category',c)} />)}
+              </div>
+              <div style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:12 }}>Input Method</div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:24 }}>
+                <ModeTab icon="file"  label="Text"     active={mode==='text'}     onClick={()=>setMode('text')} />
+                <ModeTab icon="image" label="Image"    active={mode==='image'}    onClick={()=>setMode('image')} />
+                <ModeTab icon="mic"   label="Voice"    active={mode==='voice'}    onClick={()=>setMode('voice')} />
+                <ModeTab icon="map"   label="Location" active={mode==='location'} onClick={()=>setMode('location')} />
+              </div>
+
+              {mode==='text' && (
+                <textarea style={{ width:'100%', minHeight:140, padding:16, background:'rgba(255,255,255,0.03)', border:`1px solid ${BDIM}`, borderRadius:12, color:'#fff', outline:'none', fontFamily:"'DM Sans',sans-serif", fontSize:14, resize:'vertical', lineHeight:1.6 }} placeholder="Describe your issue in detail — location, duration, impact..." value={form.description} onChange={e=>handle('description',e.target.value)} />
+              )}
+              {mode==='image' && (
+                <CameraCapture
+                  imageFile={imageFile}
+                  imagePreview={imagePreview}
+                  onImage={onImage}
+                />
+              )}
+              {mode==='voice' && (
+                <VoiceRecorder
+                  onTranscriptChange={text => setVoiceTranscript(text)}
+                />
+              )}
+              {mode==='location' && (
+                <GeoDetect
+                  onLocationDetected={loc => {
+                    if (!loc) { setGeoCoords(null); return }
+                    setGeoCoords({ lat: loc.lat, lng: loc.lng })
+                    handle('location', loc.label)
+                  }}
+                />
+              )}
+
+              <div style={{ marginTop:16 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:8 }}>Location (optional)</div>
+                <input style={{ width:'100%', padding:'12px 16px', background:'rgba(255,255,255,0.03)', border:`1px solid ${BDIM}`, borderRadius:10, color:'#fff', outline:'none', fontSize:14 }} placeholder="Area, landmark, city..." value={form.location} onChange={e=>handle('location',e.target.value)} />
+              </div>
+
+              {error && <div style={{ color:RED, marginTop:12, fontSize:13, padding:'10px 14px', background:`${RED}10`, borderRadius:8, border:`1px solid ${RED}25` }}>{error}</div>}
+              <button onClick={runAI} disabled={aiLoading} style={{ width:'100%', marginTop:24, padding:16, background:`linear-gradient(135deg,${BLUE},${CYAN}88)`, color:'#fff', borderRadius:12, fontWeight:800, border:'none', cursor:'pointer', fontSize:15, boxShadow:`0 8px 24px ${BLUE}40`, opacity:aiLoading?0.7:1, transition:'all 0.2s' }}>
+                {aiLoading ? '🤖 Gemini AI Processing...' : '⚡ Analyze with Gemini AI →'}
+              </button>
+            </div>
+            {/* Sidebar */}
+            <div style={{ background:SURF, borderRadius:20, border:`1px solid ${BDIM}`, padding:24, position:'sticky', top:88 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:16 }}>Pipeline Preview</div>
+              {[{icon:'cpu',label:'AI Processing',col:BLUE,sub:'Gemini 2.0 Flash analysis'},{icon:'file',label:'RTI Draft',col:AMBER,sub:'AI-enriched legal document'},{icon:'shield',label:'Verification',col:PURPLE,sub:'OTP + CAPTCHA'},{icon:'send',label:'Submission',col:GREEN,sub:'Formally filed & tracked'}].map((s,i)=>(
+                <div key={i} style={{ display:'flex', gap:14, padding:'14px 0', borderBottom:i<3?`1px solid ${BDIM}`:'none' }}>
+                  <div style={{ width:36, height:36, borderRadius:9, background:`${s.col}15`, border:`1px solid ${s.col}25`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <Icon name={s.icon} size={15} color={s.col} />
+                  </div>
+                  <div><div style={{ fontWeight:700, fontSize:13 }}>{s.label}</div><div style={{ fontSize:11, color:'rgba(255,255,255,0.35)', marginTop:2 }}>{s.sub}</div></div>
                 </div>
-                <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 28, marginBottom: 12 }}>Legally Submitted!</h2>
-                <div style={{ background: 'rgba(26,86,232,0.08)', border: '1px solid rgba(26,86,232,0.2)', borderRadius: 14, padding: '20px 28px', marginBottom: 24, textAlign: 'left' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
-                    <span style={{ color: 'rgba(255,255,255,0.4)' }}>Tracking ID</span>
-                    <span style={{ color: '#00c2e0', fontWeight: 700 }}>{result?.trackingId}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 2: AI RESULT ── */}
+        {step==='ai' && aiResult && (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:32, alignItems:'start' }}>
+            <div>
+              {/* Header */}
+              <div style={{ background:SURF, borderRadius:20, border:`1px solid ${BDIM}`, padding:28, marginBottom:20 }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+                  <div>
+                    <div style={{ fontSize:10, fontWeight:700, color:CYAN, textTransform:'uppercase', letterSpacing:2, marginBottom:6, fontFamily:"'Space Mono',monospace" }}>
+                      🤖 {aiResult.model==='gemini-2.0-flash'?'Gemini 2.0 Flash':'Rule-Based Engine'} Analysis Complete
+                    </div>
+                    <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:22 }}>AI Processing Results</div>
+                  </div>
+                  <div style={{ padding:'8px 16px', borderRadius:20, background:`${SEV_COLOR[aiResult.severity]||AMBER}15`, border:`1px solid ${SEV_COLOR[aiResult.severity]||AMBER}30`, color:SEV_COLOR[aiResult.severity]||AMBER, fontWeight:800, fontSize:13, fontFamily:"'Space Mono',monospace" }}>
+                    {aiResult.severity} SEVERITY
                   </div>
                 </div>
-                <button onClick={() => navigate('track')} style={{ background: '#1a56e8', color: '#fff', padding: '12px 24px', borderRadius: 9, border: 'none', cursor: 'pointer', fontWeight: 700 }}>Track Status</button>
+                <ConfidenceMeter value={aiResult.confidence||0} />
               </div>
-            ) : showLegalReview ? (
-              <div style={{ background: SURF, borderRadius: 20, border: `1px solid ${BDIM}`, padding: 40 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                   <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 20 }}>RTI Draft Preview</div>
-                   <button onClick={() => setShowLegalReview(false)} style={{ background: 'transparent', color: 'rgba(255,255,255,0.4)', border: 'none', cursor: 'pointer', fontSize: 13 }}>← Back to Edit</button>
+
+              {/* AI Summary */}
+              <div style={{ background:SURF, borderRadius:16, border:`1px solid ${BDIM}`, padding:24, marginBottom:16 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:10 }}>📝 AI Summary</div>
+                <p style={{ fontSize:15, lineHeight:1.75, color:'rgba(255,255,255,0.85)' }}>{aiResult.summary}</p>
+              </div>
+
+              {/* Vision Analysis — only shown when Gemini actually saw the image */}
+              {aiResult.imageAnalysis && (
+                <div style={{ background:`${PURPLE}08`, borderRadius:16, border:`1px solid ${PURPLE}25`, borderLeft:`3px solid ${PURPLE}`, padding:24, marginBottom:16 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+                    <span style={{ fontSize:16 }}>📸</span>
+                    <div style={{ fontSize:10, fontWeight:700, color:PURPLE, textTransform:'uppercase', letterSpacing:1.5 }}>Gemini Vision — Image Analysis</div>
+                  </div>
+                  <p style={{ fontSize:14, lineHeight:1.75, color:'rgba(255,255,255,0.8)', fontStyle:'italic' }}>{aiResult.imageAnalysis}</p>
                 </div>
-                <div style={{ 
-                  background: '#f8fafc', color: '#1e293b', padding: 40, borderRadius: 12, 
-                  fontFamily: "'Courier Prime', 'Courier New', monospace", fontSize: 14, 
-                  lineHeight: 1.6, whiteSpace: 'pre-wrap', border: '1px solid #e2e8f0',
-                  boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.05)', marginBottom: 32
-                }}>
-                  {legalDraft}
+              )}
+
+              {/* Category + Authority */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+                <div style={{ background:SURF, borderRadius:16, border:`1px solid ${BDIM}`, padding:20 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:8 }}>📂 Classified Category</div>
+                  <div style={{ fontWeight:800, fontSize:16, color:CYAN }}>{aiResult.category}</div>
                 </div>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <button onClick={submit} disabled={submitting} style={{ 
-                    flex: 1, padding: 16, background: '#0ec98c', color: '#fff', border: 'none', 
-                    borderRadius: 12, fontWeight: 700, cursor: 'pointer', boxShadow: '0 8px 20px rgba(14,201,140,0.3)'
-                  }}>
-                    {submitting ? 'Submitting Formally...' : 'Confirm & Submit Legal Document'}
+                <div style={{ background:SURF, borderRadius:16, border:`1px solid ${BDIM}`, padding:20 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:8 }}>🏛️ Route To Authority</div>
+                  <div style={{ fontWeight:700, fontSize:13, color:'rgba(255,255,255,0.85)', lineHeight:1.4 }}>{aiResult.authority}</div>
+                </div>
+              </div>
+
+              {/* Severity Reason */}
+              <div style={{ background:SURF, borderRadius:16, border:`1px solid ${(SEV_COLOR[aiResult.severity]||AMBER)}25`, borderLeft:`3px solid ${SEV_COLOR[aiResult.severity]||AMBER}`, padding:20, marginBottom:16 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:SEV_COLOR[aiResult.severity]||AMBER, textTransform:'uppercase', letterSpacing:1.5, marginBottom:8 }}>⚡ Severity Analysis</div>
+                <p style={{ fontSize:14, color:'rgba(255,255,255,0.7)', lineHeight:1.6 }}>{aiResult.severityReason}</p>
+                <div style={{ marginTop:12, display:'flex', alignItems:'center', gap:8 }}>
+                  <div style={{ flex:1, height:6, borderRadius:3, background:'rgba(255,255,255,0.06)' }}>
+                    <div style={{ height:'100%', width:`${aiResult.severityScore||0}%`, background:`linear-gradient(90deg,${SEV_COLOR[aiResult.severity]||AMBER}55,${SEV_COLOR[aiResult.severity]||AMBER})`, borderRadius:3 }} />
+                  </div>
+                  <span style={{ fontSize:12, fontWeight:700, color:SEV_COLOR[aiResult.severity]||AMBER, fontFamily:"'Space Mono',monospace" }}>{aiResult.severityScore}/100</span>
+                </div>
+              </div>
+
+              {/* Keywords */}
+              {aiResult.keywords?.length > 0 && (
+                <div style={{ background:SURF, borderRadius:16, border:`1px solid ${BDIM}`, padding:20, marginBottom:16 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:12 }}>🏷️ Key Issues Detected</div>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                    {aiResult.keywords.map((k,i)=>(
+                      <span key={i} style={{ padding:'5px 12px', borderRadius:6, background:`${BLUE}15`, border:`1px solid ${BLUE}30`, color:CYAN, fontSize:12, fontWeight:700, fontFamily:"'Space Mono',monospace" }}>#{k}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Evidence + Legal */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:20 }}>
+                <div style={{ background:SURF, borderRadius:16, border:`1px solid ${BDIM}`, padding:20 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:12 }}>🔗 Evidence on Record</div>
+                  {aiResult.evidenceFlags?.length > 0 ? aiResult.evidenceFlags.map((f,i)=>(
+                    <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 0', fontSize:13, color:'rgba(255,255,255,0.7)' }}>
+                      <span style={{ color:GREEN }}>✓</span> {EVIDENCE_LABELS[f]||f}
+                    </div>
+                  )) : <p style={{ fontSize:13, color:'rgba(255,255,255,0.3)' }}>No evidence attached</p>}
+                </div>
+                <div style={{ background:SURF, borderRadius:16, border:`1px solid ${BDIM}`, padding:20 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:12 }}>⚖️ Applicable Law</div>
+                  {aiResult.legalSections?.map((s,i)=>(
+                    <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:8, padding:'4px 0', fontSize:12, color:'rgba(255,255,255,0.65)', lineHeight:1.4 }}>
+                      <span style={{ color:PURPLE, flexShrink:0 }}>§</span> {s}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {error && <div style={{ color:RED, marginBottom:12, fontSize:13, padding:'10px 14px', background:`${RED}10`, borderRadius:8, border:`1px solid ${RED}25` }}>{error}</div>}
+              <div style={{ display:'flex', gap:12 }}>
+                <button onClick={()=>setStep('input')} style={{ padding:'14px 24px', background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.6)', border:`1px solid ${BDIM}`, borderRadius:12, cursor:'pointer', fontWeight:700 }}>← Re-edit</button>
+                <button onClick={()=>setStep('verify')} style={{ flex:1, padding:16, background:`linear-gradient(135deg,${AMBER},${GREEN}88)`, color:'#fff', border:'none', borderRadius:12, fontWeight:800, cursor:'pointer', fontSize:15, boxShadow:`0 8px 24px ${GREEN}30` }}>
+                  Approve & Generate Legal Draft →
+                </button>
+              </div>
+            </div>
+            {/* Mini sidebar */}
+            <div style={{ background:SURF, borderRadius:20, border:`1px solid ${BDIM}`, padding:24, position:'sticky', top:88 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:16 }}>Smart Routing</div>
+              <div style={{ padding:16, background:`${BLUE}08`, borderRadius:12, border:`1px solid ${BLUE}20`, marginBottom:16 }}>
+                <div style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginBottom:4 }}>Filing To</div>
+                <div style={{ fontWeight:700, fontSize:14, color:'#fff', lineHeight:1.5 }}>{aiResult.authority}</div>
+              </div>
+              <div style={{ padding:16, background:`${AMBER}08`, borderRadius:12, border:`1px solid ${AMBER}20` }}>
+                <div style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginBottom:4 }}>Response Deadline</div>
+                <div style={{ fontWeight:800, fontSize:20, color:AMBER }}>30 Days</div>
+                <div style={{ fontSize:12, color:'rgba(255,255,255,0.4)', marginTop:2 }}>Under RTI Act, 2005</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 3: VERIFY & DRAFT ── */}
+        {step==='verify' && (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 340px', gap:32, alignItems:'start' }}>
+            <div>
+              {/* OTP */}
+              <div style={{ background:SURF, borderRadius:20, border:`1px solid ${BDIM}`, padding:28, marginBottom:20 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20 }}>
+                  <div style={{ width:44, height:44, borderRadius:12, background:`${PURPLE}15`, border:`1px solid ${PURPLE}30`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <Icon name="shield" size={20} color={PURPLE} />
+                  </div>
+                  <div>
+                    <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18 }}>OTP Verification</div>
+                    <div style={{ fontSize:13, color:'rgba(255,255,255,0.4)' }}>Verify your identity before submission</div>
+                  </div>
+                  {otpVerified && <span style={{ marginLeft:'auto', padding:'4px 12px', background:`${GREEN}15`, border:`1px solid ${GREEN}30`, borderRadius:6, color:GREEN, fontSize:12, fontWeight:700 }}>✓ Verified</span>}
+                </div>
+                {!otpVerified && (
+                  <>
+                    {!otpSent ? (
+                      <button onClick={sendOTP} style={{ width:'100%', padding:'12px', background:PURPLE, color:'#fff', border:'none', borderRadius:10, fontWeight:700, cursor:'pointer', fontSize:14 }}>
+                        📱 Send OTP to Registered Mobile
+                      </button>
+                    ) : (
+                      <div style={{ display:'flex', gap:10 }}>
+                        <input value={otp} onChange={e=>setOtp(e.target.value)} maxLength={6} placeholder="Enter 6-digit OTP (demo: 123456)" style={{ flex:1, padding:'12px 16px', background:'rgba(255,255,255,0.04)', border:`1px solid ${BDIM}`, borderRadius:10, color:'#fff', outline:'none', fontSize:14, letterSpacing:3 }} />
+                        <button onClick={verifyOTP} style={{ padding:'12px 20px', background:PURPLE, color:'#fff', border:'none', borderRadius:10, fontWeight:700, cursor:'pointer' }}>Verify</button>
+                      </div>
+                    )}
+                    {otpSent && <p style={{ fontSize:12, color:'rgba(255,255,255,0.3)', marginTop:8 }}>Demo OTP: <strong style={{color:CYAN}}>123456</strong></p>}
+                  </>
+                )}
+              </div>
+
+              {/* CAPTCHA */}
+              <div style={{ background:SURF, borderRadius:20, border:`1px solid ${BDIM}`, padding:28, marginBottom:20 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20 }}>
+                  <div style={{ width:44, height:44, borderRadius:12, background:`${AMBER}15`, border:`1px solid ${AMBER}30`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <Icon name="alertCircle" size={20} color={AMBER} />
+                  </div>
+                  <div>
+                    <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18 }}>CAPTCHA Challenge</div>
+                    <div style={{ fontSize:13, color:'rgba(255,255,255,0.4)' }}>Prove you're human</div>
+                  </div>
+                  {captchaPassed && <span style={{ marginLeft:'auto', padding:'4px 12px', background:`${GREEN}15`, border:`1px solid ${GREEN}30`, borderRadius:6, color:GREEN, fontSize:12, fontWeight:700 }}>✓ Passed</span>}
+                </div>
+                {!captchaPassed && captchaQ && (
+                  <div>
+                    <div style={{ textAlign:'center', padding:'24px', background:'rgba(255,255,255,0.03)', borderRadius:12, marginBottom:16 }}>
+                      <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:32, color:AMBER }}>{captchaQ.a} + {captchaQ.b} = ?</span>
+                    </div>
+                    <div style={{ display:'flex', gap:10 }}>
+                      <input value={captchaAns} onChange={e=>setCaptchaAns(e.target.value)} onKeyDown={e=>e.key==='Enter'&&checkCaptcha()} type="number" placeholder="Your answer" style={{ flex:1, padding:'12px 16px', background:'rgba(255,255,255,0.04)', border:`1px solid ${BDIM}`, borderRadius:10, color:'#fff', outline:'none', fontSize:16, textAlign:'center' }} />
+                      <button onClick={checkCaptcha} style={{ padding:'12px 20px', background:AMBER, color:'#000', border:'none', borderRadius:10, fontWeight:800, cursor:'pointer' }}>Submit</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Legal Draft Toggle */}
+              <div style={{ background:SURF, borderRadius:20, border:`1px solid ${BDIM}`, padding:28, marginBottom:20 }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: showDraft?20:0 }}>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18 }}>📄 RTI Legal Draft</div>
+                  <button onClick={()=>{ if(!showDraft&&!legalDraft){
+                    const d = mode==='voice' ? voiceTranscript : form.description;
+                    const now = new Date();
+                    const dateStr = now.toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
+                    const yearAgo = new Date(now); yearAgo.setFullYear(yearAgo.getFullYear()-1);
+                    const fromStr = yearAgo.toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
+                    const firstSentence = d.split(/[.!?]/)[0].trim();
+                    const rest = d.slice(firstSentence.length).replace(/^[.!?\s]+/,'').trim();
+                    setLegalDraft(
+`APPLICATION UNDER THE RIGHT TO INFORMATION ACT, 2005
+
+To,
+The Public Information Officer (PIO),
+${aiResult?.authority||'The Concerned Public Authority'},
+Government of India / State Government.
+
+Date: ${dateStr}
+Place: ${form.location||'[Location]'}
+
+Subject: Request for Information under Section 6(1) of the Right to Information Act, 2005 — regarding ${form.category} issue at ${form.location||'[Location]'}.
+
+Respected Sir / Madam,
+
+I am a citizen of India and I wish to bring to your kind attention a serious matter concerning ${form.category.toLowerCase()} in the area of ${form.location||'the concerned locality'}. ${firstSentence}.${rest?' '+rest:''}
+
+Despite the evident public impact of this issue, no satisfactory resolution has been forthcoming. I am therefore constrained to seek information under the provisions of the Right to Information Act, 2005 in order to understand the status of action taken by the competent authority.
+
+Accordingly, I hereby request the following specific information under Section 6(1) of the RTI Act, 2005:
+
+1. Kindly furnish the current status of the action taken, or proposed to be taken, by the concerned authority in response to the matter described above.
+
+2. Kindly provide copies of any inspection reports, field surveys, or official assessments conducted at the location mentioned, in the past twelve months.
+
+3. Kindly furnish the details of the budget allocated and the actual expenditure incurred for maintenance and remedial work at this location during the current and previous financial year.
+
+4. Kindly provide the names, designations, and official contact details of the officers directly responsible for overseeing and resolving this matter.
+
+5. Kindly furnish details of any earlier complaints or representations received by your office in respect of this matter, and the action taken on each.
+
+The information sought pertains to the period from ${fromStr} to ${dateStr}.
+
+I wish to state that the information sought does not fall within the exemptions contained in Sections 8 and 9 of the Right to Information Act, 2005, and that to the best of my knowledge, it pertains to your public authority.
+
+I am enclosing the prescribed application fee of Rs. 10/- (Rupees Ten only) as stipulated under the RTI Act. Kindly acknowledge receipt of this application and furnish the requested information within thirty (30) days as mandated under Section 7(1) of the RTI Act, 2005.
+
+Should no response be received within the stipulated period, or should I be dissatisfied with the response, I reserve the right to prefer a first appeal under Section 19(1) of the RTI Act, 2005, and to approach the appropriate Information Commission thereafter.
+
+Thanking you,
+
+Yours faithfully,
+
+Name    : [Applicant Name]
+Address : ${form.location||'[Address]'}
+Date    : ${dateStr}
+
+Enclosures:
+  1. Prescribed RTI application fee (Rs. 10/-)`)
+                  } setShowDraft(!showDraft) }} style={{ padding:'8px 16px', background:showDraft?'rgba(255,255,255,0.06)':'rgba(26,86,232,0.15)', color:showDraft?'rgba(255,255,255,0.5)':CYAN, border:`1px solid ${showDraft?BDIM:BLUE+'44'}`, borderRadius:8, cursor:'pointer', fontWeight:700, fontSize:13 }}>
+                    {showDraft?'Hide Draft':'Preview Draft'}
                   </button>
                 </div>
+                {showDraft && (
+                  <>
+                    <textarea value={legalDraft} onChange={e=>setLegalDraft(e.target.value)} style={{ width:'100%', minHeight:320, padding:20, background:'#f8fafc', color:'#1e293b', border:'1px solid #e2e8f0', borderRadius:12, fontFamily:"'Courier New',monospace", fontSize:12, lineHeight:1.6, resize:'vertical', outline:'none' }} />
+                    <button onClick={()=>{ const b=new Blob([legalDraft],{type:'text/plain'}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='RTI_Draft.txt'; a.click() }} style={{ marginTop:10, padding:'8px 16px', background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.5)', border:`1px solid ${BDIM}`, borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600 }}>⬇️ Download Draft</button>
+                  </>
+                )}
               </div>
-            ) : (
-              <div style={{ background: SURF, borderRadius: 20, border: `1px solid ${BDIM}`, padding: '24px' }}>
-                <div style={{ marginBottom: 24 }}>
-                   <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 12 }}>Select Department</div>
-                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {ISSUE_CATEGORIES.map(cat => (
-                        <CategoryChip key={cat} label={cat} active={form.category === cat} onClick={() => handle('category', cat)} />
-                      ))}
-                   </div>
-                </div>
 
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 12 }}>Input Method</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 24 }}>
-                  <ModeTab icon="file"  label="Text" active={mode === 'text'} onClick={() => setMode('text')} />
-                  <ModeTab icon="image" label="Image" active={mode === 'image'} onClick={() => setMode('image')} />
-                  <ModeTab icon="mic"   label="Voice" active={mode === 'voice'} onClick={() => setMode('voice')} />
-                  <ModeTab icon="map"   label="Location" active={mode === 'location'} onClick={() => setMode('location')} />
-                </div>
-                
-                {mode === 'text' && <textarea style={{ width: '100%', minHeight: 140, padding: 16, background: 'rgba(255,255,255,0.03)', border: `1px solid ${BDIM}`, borderRadius: 12, color: '#fff', outline: 'none' }} placeholder="..." value={form.description} onChange={e => handle('description', e.target.value)} />}
-                {mode === 'image' && <div onClick={() => fileInputRef.current?.click()} style={{ border: `2px dashed ${BDIM}`, padding: 60, textAlign: 'center', borderRadius: 16, cursor: 'pointer' }}>{imagePreview ? <img src={imagePreview} style={{ width: 120 }} /> : 'Upload Image'} <input ref={fileInputRef} type="file" onChange={e => handleImageSelect(e.target.files[0])} style={{ display: 'none' }} /></div>}
-                {mode === 'voice' && <div style={{ textAlign: 'center', padding: 40 }}><button onClick={isRecording ? stopRecording : startRecording} style={{ width: 80, height: 80, borderRadius: '50%', background: isRecording ? '#ef4444' : '#1a56e8', border: 'none', cursor: 'pointer' }}><Icon name="mic" size={32} color="white" /></button><p style={{ marginTop: 16 }}>{isRecording ? 'Listening...' : 'Record Voice'}</p></div>}
-                {mode === 'location' && <div style={{ textAlign: 'center', padding: 40 }}><button onClick={detectLocation} style={{ padding: '12px 24px', background: '#1a56e8', color: '#fff', borderRadius: 9, border: 'none' }}>Detect Location</button><p style={{ marginTop: 16 }}>{form.location || 'Click to detect'}</p></div>}
-
-                {apiError && <div style={{ color: '#ef4444', marginTop: 12 }}>{apiError}</div>}
-                <button onClick={previewLegalDraft} style={{ width: '100%', marginTop: 24, padding: 16, background: '#1a56e8', color: '#fff', borderRadius: 12, fontWeight: 700, border: 'none' }}>Generate Legal RTI Draft →</button>
+              {error && <div style={{ color:RED, marginBottom:12, fontSize:13, padding:'10px 14px', background:`${RED}10`, borderRadius:8 }}>{error}</div>}
+              <div style={{ display:'flex', gap:12 }}>
+                <button onClick={()=>setStep('ai')} style={{ padding:'14px 20px', background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.6)', border:`1px solid ${BDIM}`, borderRadius:12, cursor:'pointer', fontWeight:700 }}>← Back</button>
+                <button onClick={doSubmit} disabled={submitting||!otpVerified||!captchaPassed} style={{ flex:1, padding:16, background:otpVerified&&captchaPassed?`linear-gradient(135deg,${GREEN},${CYAN}88)`:'rgba(255,255,255,0.05)', color:otpVerified&&captchaPassed?'#fff':'rgba(255,255,255,0.3)', border:'none', borderRadius:12, fontWeight:800, cursor:otpVerified&&captchaPassed?'pointer':'not-allowed', fontSize:15, boxShadow:otpVerified&&captchaPassed?`0 8px 24px ${GREEN}30`:'none', transition:'all 0.3s' }}>
+                  {submitting?'Submitting Formally...':'✅ Confirm & Submit Legal Document'}
+                </button>
               </div>
-            )}
-          </div>
-
-          {/* RIGHT SIDEBAR */}
-          <div style={{ position: 'sticky', top: 88 }}>
-             {PIPELINE_PREVIEW.map((s, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 12px', borderBottom: i < 3 ? '1px solid ${BDIM}' : 'none' }}>
-                   <div style={{ width: 38, height: 38, borderRadius: 9, background: `${s.color}15`, border: `1px solid ${s.color}25`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon name={s.icon} size={16} color={s.color} />
-                   </div>
-                   <div>
-                      <div style={{ fontWeight: 700, fontSize: 13 }}>{s.label}</div>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{s.sub}</div>
-                   </div>
+            </div>
+            {/* Sidebar: auto-fill preview */}
+            <div style={{ background:SURF, borderRadius:20, border:`1px solid ${BDIM}`, padding:24, position:'sticky', top:88 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:16 }}>Auto-Fill Summary</div>
+              {[['Category',aiResult?.category||form.category],['Severity',aiResult?.severity||'MEDIUM'],['Authority',aiResult?.authority||'—'],['Location',form.location||'Not specified'],['Input Mode',mode],['Evidence',(aiResult?.evidenceFlags||[]).length+' item(s)']].map(([k,v])=>(
+                <div key={k} style={{ padding:'10px 0', borderBottom:`1px solid ${BDIM}` }}>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.3)', marginBottom:3 }}>{k}</div>
+                  <div style={{ fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.85)', wordBreak:'break-word' }}>{v}</div>
                 </div>
-             ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* ── STEP 4: SUCCESS ── */}
+        {step==='done' && result && (
+          <div style={{ maxWidth:580, margin:'0 auto', textAlign:'center', padding:'40px 0' }}>
+            <div style={{ width:90, height:90, borderRadius:'50%', margin:'0 auto 28px', background:`${GREEN}15`, border:`2px solid ${GREEN}40`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <Icon name="check" size={40} color={GREEN} sw={2.5} />
+            </div>
+            <h2 style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:32, marginBottom:8 }}>Filed Successfully! 🎉</h2>
+            <p style={{ color:'rgba(255,255,255,0.45)', marginBottom:32 }}>Your RTI complaint has been formally submitted and is being tracked.</p>
+            <div style={{ background:SURF, border:`1px solid ${BDIM}`, borderRadius:16, padding:28, textAlign:'left', marginBottom:24 }}>
+              {[['Tracking ID',result.trackingId,CYAN],['Status',result.status,GREEN],['Severity',result.severity,SEV_COLOR[result.severity]||AMBER],['Category',result.category,'#fff'],['Authority',result.authority,'rgba(255,255,255,0.7)'],['Next Follow-up','7 days reminder auto-scheduled',AMBER]].map(([k,v,c])=>(
+                <div key={k} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:`1px solid ${BDIM}` }}>
+                  <span style={{ color:'rgba(255,255,255,0.4)', fontSize:13 }}>{k}</span>
+                  <span style={{ color:c, fontWeight:700, fontSize:13 }}>{v}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', gap:12 }}>
+              <button onClick={()=>navigate('track')} style={{ flex:1, padding:14, background:BLUE, color:'#fff', border:'none', borderRadius:12, fontWeight:700, cursor:'pointer', boxShadow:`0 8px 20px ${BLUE}40` }}>📊 Track Status</button>
+              <button onClick={()=>{ closeCamera(); setStep('input'); setForm({description:'',category:CATEGORIES[0],location:''}); setAiResult(null); setResult(null); setOtpVerified(false); setCaptchaPassed(false); setOtp(''); setLegalDraft(''); setShowDraft(false); setImageFile(null); setImagePreview(null); setVoiceTranscript(''); setGeoCoords(null); finalTranscriptRef.current='' }} style={{ flex:1, padding:14, background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.6)', border:`1px solid ${BDIM}`, borderRadius:12, fontWeight:700, cursor:'pointer' }}>+ New Complaint</button>
+            </div>
+          </div>
+        )}
       </section>
-      
+
       <style>{`
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
-        .page-enter { animation: fade 0.5s ease; }
-        @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        @keyframes spin  { to{transform:rotate(360deg)} }
+        .page-enter { animation: fade 0.4s ease; }
+        @keyframes fade { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
     </div>
   )

@@ -3,10 +3,10 @@ import Icon from '../components/Icon'
 
 /* ── DATA (unchanged) ─────────────────────────────────────────── */
 const TEAM = [
-  { initials: 'PS', name: 'Priya Sharma',  role: 'Founder & CEO',           color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  bio: 'Former IAS officer with 15 years in civic governance and RTI advocacy across Maharashtra and Delhi.' },
-  { initials: 'AM', name: 'Arjun Mehta',   role: 'Chief Technology Officer', color: '#3b74ff', bg: 'rgba(59,116,255,0.12)',  bio: 'AI/ML engineer specialising in legal NLP, document intelligence, and retrieval-augmented generation systems.' },
-  { initials: 'FZ', name: 'Fatima Zaidi',  role: 'Legal Director',           color: '#00c2e0', bg: 'rgba(0,194,224,0.12)',   bio: 'Advocate specialising in RTI law, whistleblower protection, PIL litigation, and administrative law reform.' },
-  { initials: 'RV', name: 'Rohan Verma',   role: 'Head of Growth',           color: '#0ec98c', bg: 'rgba(14,201,140,0.12)',  bio: 'Civic-tech strategist previously at Janaagraha and Accountability Initiative. Expert in government partnerships.' },
+  { initials: 'DG', name: 'Diksha Gupta',  role: 'FrontEnd Developer',           color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  bio: '' },
+  { initials: 'TK', name: 'Tanmay Kanchan',   role: 'BackEnd Developer', color: '#3b74ff', bg: 'rgba(59,116,255,0.12)',  bio: '' },
+  { initials: 'A', name: 'Aditya',  role: 'BackEnd Developer',           color: '#00c2e0', bg: 'rgba(0,194,224,0.12)',   bio: '' },
+  { initials: 'EM', name: 'Ekansh Mishra',   role: 'FrontEnd Developer',           color: '#0ec98c', bg: 'rgba(14,201,140,0.12)',  bio: '' },
 ]
 
 const VALUES = [

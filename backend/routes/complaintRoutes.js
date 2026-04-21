@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const router = express.Router();
 const {
+  analyzeComplaint,
   submitComplaint,
   getComplaints,
   searchComplaint,
@@ -35,6 +36,9 @@ const upload = multer({
   fileFilter,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
 });
+
+// POST /api/complaints/analyze — run AI analysis (pre-submit, no DB save)
+router.post('/analyze', upload.single('image'), analyzeComplaint);
 
 // POST /api/complaints — submit a complaint (with optional image)
 router.post('/', upload.single('image'), submitComplaint);
