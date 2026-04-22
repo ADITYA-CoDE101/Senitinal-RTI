@@ -35,7 +35,7 @@ export default function Login({ navigate }) {
     }}>
       {/* Background Decor */}
       <div style={{ position: 'absolute', top: '10%', left: '10%', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle,rgba(26,86,232,0.1) 0%,transparent 70%)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: '10%', right: '10%', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle,rgba(0,194,224,0.1) 0%,transparent 70%)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: '10%', right: '10%', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle,rgba(26,86,232,0.1) 0%,transparent 70%)', pointerEvents: 'none' }} />
 
       <div style={{ width: '100%', maxWidth: 440, padding: '0 24px', position: 'relative', zIndex: 1 }}>
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
@@ -44,7 +44,7 @@ export default function Login({ navigate }) {
                  <Icon name="shield" size={24} color="#1a56e8" />
               </div>
               <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 32, letterSpacing: '-1px', color: '#fff' }}>
-                Sentinel<span style={{ color: '#00c2e0' }}>-RTI</span>
+                Sentinel<span style={{ color: '#3b74ff' }}>-RTI</span>
               </span>
            </div>
            <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 20, color: '#fff', marginBottom: 10 }}>Secure Personnel Portal</h2>
@@ -89,7 +89,7 @@ export default function Login({ navigate }) {
            <div style={{ marginTop: 32, textAlign: 'center', background: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)' }}>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>DEFAULT TEST CREDENTIALS</div>
               <div style={{ fontSize: 12, color: '#1a56e8', fontFamily: "'Space Mono', monospace" }}>admin@sentinel.com</div>
-              <div style={{ fontSize: 12, color: '#0ec98c', fontFamily: "'Space Mono', monospace" }}>admin123</div>
+              <div style={{ fontSize: 12, color: '#1a56e8', fontFamily: "'Space Mono', monospace" }}>admin123</div>
            </div>
         </form>
       </div>

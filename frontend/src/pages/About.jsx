@@ -1,26 +1,27 @@
 import React from 'react'
 import Icon from '../components/Icon'
+import { useTheme } from '../App'
 
 /* ── DATA (unchanged) ─────────────────────────────────────────── */
 const TEAM = [
-  { initials: 'PS', name: 'Priya Sharma',  role: 'Founder & CEO',           color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  bio: 'Former IAS officer with 15 years in civic governance and RTI advocacy across Maharashtra and Delhi.' },
-  { initials: 'AM', name: 'Arjun Mehta',   role: 'Chief Technology Officer', color: '#3b74ff', bg: 'rgba(59,116,255,0.12)',  bio: 'AI/ML engineer specialising in legal NLP, document intelligence, and retrieval-augmented generation systems.' },
-  { initials: 'FZ', name: 'Fatima Zaidi',  role: 'Legal Director',           color: '#00c2e0', bg: 'rgba(0,194,224,0.12)',   bio: 'Advocate specialising in RTI law, whistleblower protection, PIL litigation, and administrative law reform.' },
-  { initials: 'RV', name: 'Rohan Verma',   role: 'Head of Growth',           color: '#0ec98c', bg: 'rgba(14,201,140,0.12)',  bio: 'Civic-tech strategist previously at Janaagraha and Accountability Initiative. Expert in government partnerships.' },
+  { initials: 'A', name: 'Aditya',color: '#3b74ff', bg: 'rgba(59,116,255,0.12)',  bio: 'Full-stack developer leading backend architecture, system design, and core integrations. Played a key role in shaping the overall functionality and execution of the project.' },
+  { initials: 'TC', name: 'Tanmay Kanchan', color: '#1a56e8', bg: 'rgba(26,86,232,0.12)',  bio: 'Worked across frontend and backend development, contributing to UI implementation, API integration, and database handling throughout the project.' },
+  { initials: 'DG', name: 'Diksha Gupta',  color: '#3b74ff', bg: 'rgba(59,116,255,0.12)',   bio: 'Focused on presentation, documentation, and pitch development, ensuring clear communication of the product\'s vision and structure.' },
+  { initials: 'RV', name: 'Ekansh Mishra', color: '#1a56e8', bg: 'rgba(26,86,232,0.12)',  bio: 'Led frontend presentation and interface design, focusing on user experience, visual consistency, and overall usability of the platform.' },
 ]
 
 const VALUES = [
-  { num: '01', title: 'Radical Transparency', icon: 'trending', color: '#00c2e0', desc: 'Every step of your complaint journey is visible, tracked, and auditable. Governments must be held accountable — so must we. Full audit trails for every action taken.' },
-  { num: '02', title: 'Legal Precision',       icon: 'lock',     color: '#3b74ff', desc: 'AI-generated complaints are legally accurate, jurisdiction-specific, and formatted to comply with the RTI Act 2005, CrPC, and relevant state acts. No guesswork — only precedent.' },
-  { num: '03', title: 'Citizen First',         icon: 'heart',    color: '#0ec98c', desc: 'No legal knowledge required. No fees. No barriers. We believe every Indian citizen deserves equal access to civic justice — from rural villages to urban metros.' },
+  { num: '01', title: 'Radical Transparency', icon: 'trending', color: '#3b74ff', desc: 'Every step of your complaint journey is visible, tracked, and auditable. Governments must be held accountable — so must we. Full audit trails for every action taken.' },
+  { num: '02', title: 'Legal Precision',       icon: 'lock',     color: '#1a56e8', desc: 'AI-generated complaints are legally accurate, jurisdiction-specific, and formatted to comply with the RTI Act 2005, CrPC, and relevant state acts. No guesswork — only precedent.' },
+  { num: '03', title: 'Citizen First',         icon: 'heart',    color: '#3b74ff', desc: 'No legal knowledge required. No fees. No barriers. We believe every Indian citizen deserves equal access to civic justice — from rural villages to urban metros.' },
 ]
 
 const MILESTONES = [
-  { year: '2021', title: 'The Idea',            desc: 'Founded after Priya Sharma filed 40+ RTI applications manually over two years and saw the systemic barriers ordinary citizens face.' },
-  { year: '2022', title: 'MVP Launched',         desc: 'First version deployed in Mumbai — 200 complaints filed in month one. 73% received responses within 30 days. 10× growth from media coverage.' },
-  { year: '2023', title: 'AI Integration',       desc: 'Legal RAG engine built with 50,000+ Indian law documents. Evidence enhancement and auto-routing launched. Resolution rate jumped to 81%.' },
-  { year: '2024', title: 'National Scale',        desc: 'Expanded to 18 states. 340+ government authorities integrated. Voice input added in 6 regional languages. Partnership with National RTI Forum.' },
-  { year: '2025', title: 'Open Source & Beyond', desc: 'Platform open-sourced under MIT License. 12,400+ complaints filed. 89% resolution rate. Featured in TIME100 Most Influential Companies.' },
+  { year: 'Early April', title: 'The Idea',            desc: 'Started as a college project to simplify how citizens file RTI complaints. The goal was to reduce manual effort and make the process more accessible and structured.' },
+  { year: 'April', title: 'Initial Development',         desc: 'Core frontend and backend setup completed, including basic complaint flow, UI structure, and initial database integration.' },
+  { year: 'Mid April', title: 'Feature building',       desc: 'Added key features like complaint generation flow, structured input handling, and improved UI/UX for better usability.' },
+  { year: 'Late april', title: 'Refinement',        desc: 'Focused on improving design consistency, optimizing workflows, and preparing the platform for demonstration and presentation.' },
+  { year: 'Present', title: 'Ongoing', desc: ' Continuously improving the platform with better interface design, feature enhancements, and scalability for future use.' },
 ]
 
 const PRESS   = ['The Hindu', 'Economic Times', 'NDTV', 'LiveMint', 'The Wire', 'Scroll.in']
@@ -30,36 +31,26 @@ const HERO_STATS = [
   { num: '18',   label: 'States Covered'   },
 ]
 
-/* ── SHARED DARK STYLES ────────────────────────────────────────── */
-const BG     = '#07090f'
-const SURF   = '#0d1117'
-const GLASS  = 'rgba(255,255,255,0.04)'
-const GHOVER = 'rgba(255,255,255,0.07)'
-const BDIM   = 'rgba(255,255,255,0.06)'
-const BBASE  = 'rgba(255,255,255,0.10)'
-const BBLUE  = 'rgba(26,86,232,0.30)'
-
 /* ── VALUE CARD ───────────────────────────────────────────────── */
-function ValueCard({ v, last }) {
+function ValueCard({ v, last, dark }) {
   const [hovered, setHovered] = React.useState(false)
+  const bdim = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)'
+  const txtPri = dark ? '#fff' : '#0f172a'
+  const txtMut = dark ? 'rgba(255,255,255,0.5)' : 'rgba(15,23,42,0.55)'
+  const glass = dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'
+  const ghover = dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)'
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         padding: '40px 36px',
-        borderRight: last ? 'none' : `1px solid ${BDIM}`,
-        background: hovered ? GHOVER : GLASS,
+        borderRight: last ? 'none' : `1px solid ${bdim}`,
+        background: hovered ? ghover : glass,
         transition: 'all 0.25s', position: 'relative', overflow: 'hidden',
         borderTop: hovered ? `2px solid ${v.color}` : '2px solid transparent',
       }}
     >
-      {/* glow accent */}
-      <div style={{
-        position: 'absolute', top: -40, right: -40, width: 120, height: 120, borderRadius: '50%',
-        background: `radial-gradient(circle, ${v.color}22 0%, transparent 70%)`,
-        opacity: hovered ? 1 : 0, transition: 'opacity 0.3s',
-      }} />
       <div style={{
         width: 48, height: 48, borderRadius: 12,
         background: `${v.color}18`, border: `1px solid ${v.color}30`,
@@ -70,24 +61,30 @@ function ValueCard({ v, last }) {
       <div style={{ fontFamily: "'Space Mono',monospace", fontSize: 10, color: v.color, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12, fontWeight: 700 }}>
         {v.num}
       </div>
-      <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 20, color: '#fff', marginBottom: 12 }}>{v.title}</div>
-      <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.8 }}>{v.desc}</div>
+      <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 20, color: txtPri, marginBottom: 12, transition: 'color 0.35s' }}>{v.title}</div>
+      <div style={{ fontSize: 14, color: txtMut, lineHeight: 1.8, transition: 'color 0.35s' }}>{v.desc}</div>
     </div>
   )
 }
 
 /* ── TEAM CARD ────────────────────────────────────────────────── */
-function TeamCard({ m }) {
-  const [hovered, setHovered] = React.useState(false)
+function TeamCard({ m, dark }) {
+  const [hovered] = React.useState(false)
+  const bdim = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)'
+  const txtPri = dark ? '#fff' : '#0f172a'
+  const txtMut = dark ? 'rgba(255,255,255,0.45)' : 'rgba(15,23,42,0.5)'
+  const glass = dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'
+  const ghover = dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'
+  const [isHovered, setIsHovered] = React.useState(false)
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
         padding: '36px 28px',
-        borderRight: '1px solid rgba(255,255,255,0.06)',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-        background: hovered ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)',
+        borderRight: `1px solid ${bdim}`,
+        borderBottom: `1px solid ${bdim}`,
+        background: isHovered ? ghover : glass,
         transition: 'background 0.25s',
       }}
     >
@@ -97,19 +94,21 @@ function TeamCard({ m }) {
         fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 20,
         background: m.bg, color: m.color,
         border: `1.5px solid ${m.color}40`,
-        boxShadow: hovered ? `0 0 20px ${m.color}30` : 'none',
-        transition: 'box-shadow 0.25s',
+        transition: 'all 0.25s',
       }}>{m.initials}</div>
-      <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 17, color: '#fff', marginBottom: 4 }}>{m.name}</div>
+      <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 17, color: txtPri, marginBottom: 4, transition: 'color 0.35s' }}>{m.name}</div>
       <div style={{ fontFamily: "'Space Mono',monospace", fontSize: 10, color: m.color, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>{m.role}</div>
-      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.75 }}>{m.bio}</div>
+      <div style={{ fontSize: 13, color: txtMut, lineHeight: 1.75, transition: 'color 0.35s' }}>{m.bio}</div>
     </div>
   )
 }
 
 /* ── TIMELINE ITEM ────────────────────────────────────────────── */
-function TimelineItem({ m, last }) {
+function TimelineItem({ m, last, dark }) {
   const [hovered, setHovered] = React.useState(false)
+  const bg = dark ? '#07090f' : '#f0f4fa'
+  const txtPri = dark ? '#fff' : '#0f172a'
+  const txtMut = dark ? 'rgba(255,255,255,0.45)' : 'rgba(15,23,42,0.5)'
   return (
     <div
       onMouseEnter={() => setHovered(true)}
@@ -119,31 +118,30 @@ function TimelineItem({ m, last }) {
       <div style={{
         fontFamily: "'Space Mono',monospace", fontWeight: 700,
         fontSize: 'clamp(22px, 2.5vw, 32px)',
-        color: hovered ? '#00c2e0' : 'rgba(255,255,255,0.2)',
+        color: hovered ? '#3b74ff' : (dark ? 'rgba(255,255,255,0.2)' : 'rgba(15,23,42,0.2)'),
         textAlign: 'right', lineHeight: 1, paddingTop: 4, transition: 'color 0.25s',
       }}>{m.year}</div>
 
-      <div style={{ background: 'rgba(255,255,255,0.08)', position: 'relative' }}>
+      <div style={{ background: dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)', position: 'relative' }}>
         <div style={{
           position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
           width: 12, height: 12, borderRadius: '50%',
-          background: hovered ? '#00c2e0' : '#1a56e8',
-          border: `2px solid ${BG}`,
-          boxShadow: hovered ? '0 0 12px rgba(0,194,224,0.6)' : 'none',
+          background: hovered ? '#3b74ff' : '#1a56e8',
+          border: `2px solid ${bg}`,
           transition: 'all 0.25s',
         }} />
       </div>
 
       <div style={{ paddingTop: 2 }}>
-        <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 19, color: '#fff', marginBottom: 8 }}>{m.title}</div>
-        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', lineHeight: 1.8 }}>{m.desc}</div>
+        <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 19, color: txtPri, marginBottom: 8, transition: 'color 0.35s' }}>{m.title}</div>
+        <div style={{ fontSize: 14, color: txtMut, lineHeight: 1.8, transition: 'color 0.35s' }}>{m.desc}</div>
       </div>
     </div>
   )
 }
 
 /* ── PRESS LOGO ───────────────────────────────────────────────── */
-function PressLogo({ name }) {
+function PressLogo({ name, dark }) {
   const [hovered, setHovered] = React.useState(false)
   return (
     <span
@@ -151,58 +149,52 @@ function PressLogo({ name }) {
       onMouseLeave={() => setHovered(false)}
       style={{
         fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 16,
-        color: hovered ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.2)',
+        color: hovered ? (dark ? 'rgba(255,255,255,0.7)' : 'rgba(15,23,42,0.7)') : (dark ? 'rgba(255,255,255,0.2)' : 'rgba(15,23,42,0.25)'),
         cursor: 'default', transition: 'color 0.2s',
       }}
     >{name}</span>
   )
 }
 
-/* ── SECTION RULE ─────────────────────────────────────────────── */
-function SectionRule({ label }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 56 }}>
-      <div style={{ flex: 1, height: 1, background: BDIM }} />
-      <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 22, color: '#fff', whiteSpace: 'nowrap' }}>{label}</span>
-      <div style={{ flex: 1, height: 1, background: BDIM }} />
-    </div>
-  )
-}
-
 /* ── ABOUT PAGE ───────────────────────────────────────────────── */
 export default function About({ navigate }) {
+  const { theme } = useTheme()
+  const dark = theme === 'dark'
+
+  const bg = dark ? '#07090f' : '#f0f4fa'
+  const surf = dark ? '#0d1117' : '#ffffff'
+  const bdim = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)'
+  const txtPri = dark ? '#fff' : '#0f172a'
+  const txtMut = dark ? 'rgba(255,255,255,0.55)' : 'rgba(15,23,42,0.55)'
+  const txtFaint = dark ? 'rgba(255,255,255,0.25)' : 'rgba(15,23,42,0.28)'
+  const glass = dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'
+  const bblue = 'rgba(26,86,232,0.30)'
+
   const gridBg = {
     position: 'absolute', inset: 0, pointerEvents: 'none',
-    backgroundImage: 'linear-gradient(rgba(26,86,232,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(26,86,232,0.05) 1px,transparent 1px)',
+    backgroundImage: `linear-gradient(rgba(26,86,232,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(26,86,232,0.05) 1px,transparent 1px)`,
     backgroundSize: '64px 64px',
   }
 
   return (
-    <div className="page-enter" style={{ background: BG, minHeight: '100vh', color: '#fff' }}>
+    <div className="page-enter" style={{ background: bg, minHeight: '100vh', color: txtPri, paddingTop: 72, transition: 'background 0.35s, color 0.35s' }}>
 
       {/* ── HERO ── */}
       <section style={{ position: 'relative', overflow: 'hidden', padding: '96px 48px 80px' }}>
         <div style={gridBg} />
-        {/* Glow orbs */}
+        {/* Glow orbs — hero only */}
         <div style={{ position: 'absolute', top: -120, left: -120, width: 480, height: 480, borderRadius: '50%', background: 'radial-gradient(circle,rgba(26,86,232,0.12) 0%,transparent 70%)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', bottom: -80, right: -60, width: 360, height: 360, borderRadius: '50%', background: 'radial-gradient(circle,rgba(0,194,224,0.08) 0%,transparent 70%)', pointerEvents: 'none' }} />
 
         <div style={{ maxWidth: 1200, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-          {/* Eyebrow */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontFamily: "'Space Mono',monospace", fontSize: 10, fontWeight: 700, color: '#00c2e0', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 24, animation: 'fadeUp 0.65s ease both' }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#00c2e0', animation: 'pulse 1.6s infinite' }} />
-            About Sentinel-RTI
-          </div>
-
           {/* Hero grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center' }}>
             {/* Left – headline */}
             <div>
-              <h1 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 'clamp(42px,5.5vw,68px)', lineHeight: 1.06, letterSpacing: '-2px', color: '#fff', marginBottom: 24, animation: 'fadeUp 0.65s 0.1s ease both' }}>
+              <h1 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 'clamp(42px,5.5vw,68px)', lineHeight: 1.06, letterSpacing: '-2px', color: txtPri, marginBottom: 24, animation: 'fadeUp 0.65s 0.1s ease both', transition: 'color 0.35s' }}>
                 We Give Citizens<br />
-                Their <span style={{ background: 'linear-gradient(90deg,#1a56e8,#00c2e0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Voice</span> Back.
+                Their <span style={{ background: 'linear-gradient(90deg,#1a56e8,#3b74ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Voice</span> Back.
               </h1>
-              <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.55)', lineHeight: 1.8, marginBottom: 36, animation: 'fadeUp 0.65s 0.2s ease both' }}>
+              <p style={{ fontSize: 17, color: txtMut, lineHeight: 1.8, marginBottom: 36, animation: 'fadeUp 0.65s 0.2s ease both', transition: 'color 0.35s' }}>
                 "Sentinel-RTI was built on one belief: navigating government bureaucracy should not require a law degree, money, or connections."
               </p>
               <div style={{ display: 'flex', gap: 12, animation: 'fadeUp 0.65s 0.3s ease both' }}>
@@ -211,9 +203,9 @@ export default function About({ navigate }) {
                   onMouseLeave={e => { e.currentTarget.style.background = '#1a56e8'; e.currentTarget.style.transform = '' }}>
                   <Icon name="file" size={15} color="white" /> File a Complaint
                 </button>
-                <button onClick={() => navigate('home')} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.65)', padding: '13px 28px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', fontFamily: "'Syne',sans-serif", fontWeight: 600, fontSize: 14, transition: 'all 0.2s' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.65)' }}>
+                <button onClick={() => navigate('home')} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', color: txtMut, padding: '13px 28px', borderRadius: 10, border: `1px solid ${bdim}`, cursor: 'pointer', fontFamily: "'Syne',sans-serif", fontWeight: 600, fontSize: 14, transition: 'all 0.2s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.07)'; e.currentTarget.style.color = txtPri }}
+                  onMouseLeave={e => { e.currentTarget.style.background = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'; e.currentTarget.style.color = txtMut }}>
                   <Icon name="arrow" size={15} color="currentColor" /> How It Works
                 </button>
               </div>
@@ -221,18 +213,18 @@ export default function About({ navigate }) {
 
             {/* Right – mission card + stats */}
             <div style={{ animation: 'fadeUp 0.65s 0.2s ease both' }}>
-              <div style={{ background: SURF, border: `1px solid ${BBLUE}`, borderRadius: 16, padding: '32px 36px', boxShadow: '0 8px 40px rgba(0,0,0,0.4)', marginBottom: 20 }}>
-                <span style={{ fontFamily: "'Space Mono',monospace", fontSize: 10, color: '#00c2e0', letterSpacing: 2, textTransform: 'uppercase', display: 'block', marginBottom: 16 }}>Our Mission</span>
-                <p style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 'clamp(16px,2vw,20px)', color: '#fff', lineHeight: 1.55 }}>
-                  "Democratise access to civic accountability — so <em style={{ fontStyle: 'italic', color: '#00c2e0' }}>every Indian</em>, regardless of literacy, income, or status, can exercise their constitutional right to information."
+              <div style={{ background: surf, border: `1px solid ${bblue}`, borderRadius: 16, padding: '32px 36px', boxShadow: dark ? '0 8px 40px rgba(0,0,0,0.4)' : '0 8px 40px rgba(0,0,0,0.08)', marginBottom: 20, transition: 'background 0.35s' }}>
+                <span style={{ fontFamily: "'Space Mono',monospace", fontSize: 10, color: '#3b74ff', letterSpacing: 2, textTransform: 'uppercase', display: 'block', marginBottom: 16 }}>Our Mission</span>
+                <p style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 'clamp(16px,2vw,20px)', color: txtPri, lineHeight: 1.55, transition: 'color 0.35s' }}>
+                  "Democratise access to civic accountability — so <em style={{ fontStyle: 'italic', color: '#3b74ff' }}>every Indian</em>, regardless of literacy, income, or status, can exercise their constitutional right to information."
                 </p>
               </div>
               {/* Stat pills */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
                 {HERO_STATS.map(s => (
-                  <div key={s.label} style={{ background: GLASS, border: `1px solid ${BDIM}`, borderRadius: 12, padding: '18px 16px', textAlign: 'center' }}>
-                    <div style={{ fontFamily: "'Space Mono',monospace", fontWeight: 700, fontSize: 28, background: 'linear-gradient(180deg,#fff,rgba(255,255,255,0.5))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', lineHeight: 1 }}>{s.num}</div>
-                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 6, letterSpacing: 1, textTransform: 'uppercase' }}>{s.label}</div>
+                  <div key={s.label} style={{ background: glass, border: `1px solid ${bdim}`, borderRadius: 12, padding: '18px 16px', textAlign: 'center', transition: 'all 0.35s' }}>
+                    <div style={{ fontFamily: "'Space Mono',monospace", fontWeight: 700, fontSize: 28, color: '#1a56e8', lineHeight: 1 }}>{s.num}</div>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 10, color: txtFaint, marginTop: 6, letterSpacing: 1, textTransform: 'uppercase', transition: 'color 0.35s' }}>{s.label}</div>
                   </div>
                 ))}
               </div>
@@ -242,29 +234,29 @@ export default function About({ navigate }) {
       </section>
 
       {/* ── PRESS BAR ── */}
-      <div style={{ borderTop: `1px solid ${BDIM}`, borderBottom: `1px solid ${BDIM}`, padding: '20px 48px', display: 'flex', alignItems: 'center', gap: 40, flexWrap: 'wrap' }}>
-        <span style={{ fontFamily: "'Space Mono',monospace", fontSize: 10, letterSpacing: 3, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 }}>As seen in</span>
+      <div style={{ borderTop: `1px solid ${bdim}`, borderBottom: `1px solid ${bdim}`, padding: '20px 48px', display: 'flex', alignItems: 'center', gap: 40, flexWrap: 'wrap' }}>
+        <span style={{ fontFamily: "'Space Mono',monospace", fontSize: 10, letterSpacing: 3, color: txtFaint, textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0, transition: 'color 0.35s' }}>As seen in</span>
         <div style={{ display: 'flex', gap: 36, alignItems: 'center', flexWrap: 'wrap' }}>
-          {PRESS.map(p => <PressLogo key={p} name={p} />)}
+          {PRESS.map(p => <PressLogo key={p} name={p} dark={dark} />)}
         </div>
       </div>
 
       {/* ── VALUES ── */}
       <section style={{ padding: '96px 48px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <SectionRule label="Our Principles" />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: `1px solid ${BDIM}`, borderRadius: 16, overflow: 'hidden' }}>
-            {VALUES.map((v, i) => <ValueCard key={i} v={v} last={i === VALUES.length - 1} />)}
+          <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 22, color: txtPri, marginBottom: 40, transition: 'color 0.35s' }}>Our Principles</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: `1px solid ${bdim}`, borderRadius: 16, overflow: 'hidden' }}>
+            {VALUES.map((v, i) => <ValueCard key={i} v={v} last={i === VALUES.length - 1} dark={dark} />)}
           </div>
         </div>
       </section>
 
       {/* ── TEAM ── */}
-      <section style={{ background: SURF, borderTop: `1px solid ${BDIM}`, borderBottom: `1px solid ${BDIM}`, padding: '96px 48px' }}>
+      <section style={{ background: surf, borderTop: `1px solid ${bdim}`, borderBottom: `1px solid ${bdim}`, padding: '96px 48px', transition: 'background 0.35s' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <SectionRule label="The People Behind Sentinel-RTI" />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', border: `1px solid ${BDIM}`, borderRadius: 16, overflow: 'hidden' }}>
-            {TEAM.map(m => <TeamCard key={m.name} m={m} />)}
+          <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 22, color: txtPri, marginBottom: 40, transition: 'color 0.35s' }}>The People Behind Sentinel-RTI</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', border: `1px solid ${bdim}`, borderRadius: 16, overflow: 'hidden' }}>
+            {TEAM.map(m => <TeamCard key={m.name} m={m} dark={dark} />)}
           </div>
         </div>
       </section>
@@ -272,9 +264,9 @@ export default function About({ navigate }) {
       {/* ── TIMELINE ── */}
       <section style={{ padding: '96px 48px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <SectionRule label="Our Story" />
+          <p style={{ fontFamily: "'Syne',sans-serif", fontWeight: 600, fontSize: 15, color: txtMut, marginBottom: 40, transition: 'color 0.35s' }}>Our Story</p>
           <div>
-            {MILESTONES.map((m, i) => <TimelineItem key={i} m={m} last={i === MILESTONES.length - 1} />)}
+            {MILESTONES.map((m, i) => <TimelineItem key={i} m={m} last={i === MILESTONES.length - 1} dark={dark} />)}
           </div>
         </div>
       </section>
@@ -282,12 +274,10 @@ export default function About({ navigate }) {
       {/* ── CTA ── */}
       <section style={{ padding: '0 48px 96px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div style={{ background: 'linear-gradient(135deg,rgba(26,86,232,0.18) 0%,rgba(0,194,224,0.08) 100%)', border: `1px solid ${BBLUE}`, borderRadius: 20, padding: '60px 52px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', right: -80, top: -80, width: 280, height: 280, borderRadius: '50%', background: 'radial-gradient(circle,rgba(0,194,224,0.15) 0%,transparent 70%)', pointerEvents: 'none' }} />
+          <div style={{ background: dark ? 'rgba(26,86,232,0.10)' : 'rgba(26,86,232,0.05)', border: `1px solid ${bblue}`, borderRadius: 20, padding: '60px 52px', textAlign: 'center', position: 'relative', overflow: 'hidden', transition: 'background 0.35s' }}>
             <div style={{ position: 'relative', zIndex: 1 }}>
-              <span style={{ fontFamily: "'Space Mono',monospace", fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: '#00c2e0', marginBottom: 16, display: 'block' }}>Join the Movement</span>
-              <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 'clamp(28px,4vw,48px)', color: '#fff', marginBottom: 14, letterSpacing: '-1px' }}>Your Voice Deserves to Be Heard.</h2>
-              <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.5)', marginBottom: 32 }}>File your first complaint today — free, anonymous, and legally precise.</p>
+              <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 'clamp(28px,4vw,48px)', color: txtPri, marginBottom: 14, letterSpacing: '-1px', transition: 'color 0.35s' }}>Your Voice Deserves to Be Heard.</h2>
+              <p style={{ fontSize: 16, color: txtMut, marginBottom: 32, transition: 'color 0.35s' }}>File your first complaint today — free, anonymous, and legally precise.</p>
               <button onClick={() => navigate('contact')} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: '#1a56e8', color: '#fff', padding: '14px 34px', borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 15, boxShadow: '0 6px 24px rgba(26,86,232,0.45)', transition: 'all 0.25s' }}
                 onMouseEnter={e => { e.currentTarget.style.background = '#3b74ff'; e.currentTarget.style.transform = 'translateY(-2px)' }}
                 onMouseLeave={e => { e.currentTarget.style.background = '#1a56e8'; e.currentTarget.style.transform = '' }}>
@@ -299,16 +289,16 @@ export default function About({ navigate }) {
       </section>
 
       {/* ── FOOTER ── */}
-      <footer style={{ borderTop: `1px solid ${BDIM}`, padding: '28px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-        <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 16, color: '#fff' }}>Sentinel<span style={{ color: '#00c2e0' }}>-RTI</span></span>
+      <footer style={{ borderTop: `1px solid ${bdim}`, padding: '28px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+        <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 16, color: txtPri, transition: 'color 0.35s' }}>Sentinel<span style={{ color: '#3b74ff' }}>-RTI</span></span>
         <div style={{ display: 'flex', gap: 24 }}>
           {['Home','About','Contact','RTI Act','GitHub'].map(l => (
-            <a key={l} href="#" style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', fontFamily: "'Syne',sans-serif", transition: 'color 0.2s' }}
-              onMouseEnter={e => e.target.style.color = '#00c2e0'}
-              onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.3)'}>{l}</a>
+            <a key={l} href="#" style={{ fontSize: 12, color: txtFaint, fontFamily: "'Syne',sans-serif", transition: 'color 0.2s', textDecoration: 'none' }}
+              onMouseEnter={e => e.target.style.color = '#3b74ff'}
+              onMouseLeave={e => e.target.style.color = txtFaint}>{l}</a>
           ))}
         </div>
-        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>© 2026 Sentinel-RTI — Open Source MIT</span>
+        <span style={{ fontSize: 12, color: txtFaint, transition: 'color 0.35s' }}>© 2026 Sentinel-RTI — Open Source MIT</span>
       </footer>
 
       <style>{`
