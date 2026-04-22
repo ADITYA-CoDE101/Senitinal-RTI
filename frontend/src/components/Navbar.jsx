@@ -1,141 +1,126 @@
 import React, { useState } from 'react'
 import Icon from './Icon'
+import { useAuth } from '../context/AuthContext'
 
-// Single unified dark theme for ALL pages
-const NAV_STYLE = {
-  bg:              'rgba(7, 9, 15, 0.92)',
-  border:          '1px solid rgba(255,255,255,0.07)',
-  logoColor:       '#ffffff',
-  linkColor:       'rgba(255,255,255,0.5)',
-  linkHover:       '#ffffff',
-  linkActiveBg:    'rgba(0,194,224,0.10)',
-  linkActiveColor: '#00c2e0',
-  menuIconColor:   'rgba(255,255,255,0.7)',
-  mobileBg:        '#0d1117',
-  mobileBorder:    'rgba(255,255,255,0.08)',
-  mobileLinkColor: 'rgba(255,255,255,0.75)',
-}
-
-export default function Navbar({ page, navigate }) {
+export default function Navbar({ navigate, currentPage }) {
+  const [hovered, setHovered] = useState(null)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const s = NAV_STYLE
+  const { logout, user } = useAuth()
 
-  const links = [
-    { id: 'home',    label: 'Home'    },
-    { id: 'about',   label: 'About'   },
+  const navItems = [
+    { id: 'home', label: 'Home' },
+    { id: 'fileComplaint', label: 'File Complaint' },
+    { id: 'track', label: 'Track' },
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'about', label: 'About' },
     { id: 'contact', label: 'Contact' },
-    { id: 'waitlist', label: 'Waitlist' },
   ]
 
   return (
     <nav style={{
-      position: 'sticky', top: 0, zIndex: 200,
-      height: 64, display: 'flex', alignItems: 'center',
-      justifyContent: 'space-between', padding: '0 48px',
-      background: s.bg, borderBottom: s.border,
-      backdropFilter: 'blur(20px)',
+      position: 'fixed', top: 0, left: 0, right: 0, height: 80,
+      background: 'rgba(7,9,15,0.85)', backdropFilter: 'blur(20px)',
+      borderBottom: '1px solid rgba(255,255,255,0.06)', zIndex: 1000,
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '0 48px',
     }}>
-      {/* Logo */}
-      <button
+      {/* Brand */}
+      <div 
         onClick={() => { navigate('home'); setMobileOpen(false) }}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          background: 'none', border: 'none', cursor: 'pointer',
-          fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 19,
-          color: s.logoColor, padding: 0,
-        }}
+        style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
       >
         <div style={{
-          width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+          width: 32, height: 32, borderRadius: 8,
           background: 'linear-gradient(135deg, #1a56e8, #00c2e0)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
-          <Icon name="shield" size={17} color="white" sw={2.2} />
+          <Icon name="shield" size={18} color="white" sw={2.5} />
         </div>
-        Sentinel<span style={{ color: '#00c2e0' }}>-RTI</span>
-      </button>
+        <span style={{
+          fontFamily: "'Syne', sans-serif", fontWeight: 800,
+          fontSize: 18, letterSpacing: '-0.5px', color: '#fff'
+        }}>
+          Sentinel<span style={{ color: '#00c2e0' }}>-RTI</span>
+        </span>
+      </div>
 
-      {/* Desktop links */}
-      <div style={{ display: 'flex', gap: 4 }}>
-        {links.map(l => {
-          const isActive = l.id === page
+      {/* Nav Links */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {navItems.map((item) => {
+          const active = currentPage === item.id
+          const isHovered = hovered === item.id
           return (
             <button
-              key={l.id}
-              onClick={() => { navigate(l.id); setMobileOpen(false) }}
+              key={item.id}
+              onClick={() => { navigate(item.id); setMobileOpen(false) }}
+              onMouseEnter={() => setHovered(item.id)}
+              onMouseLeave={() => setHovered(null)}
               style={{
-                padding: '7px 16px', borderRadius: 8, border: 'none',
-                background: isActive ? s.linkActiveBg : 'transparent',
-                color: isActive ? s.linkActiveColor : s.linkColor,
-                fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: 13,
-                cursor: 'pointer', transition: 'all 0.2s',
+                padding: '8px 16px', borderRadius: 8, border: 'none',
+                background: active ? 'rgba(26,86,232,0.1)' : isHovered ? 'rgba(255,255,255,0.05)' : 'transparent',
+                color: active ? '#00c2e0' : isHovered ? '#fff' : 'rgba(255,255,255,0.5)',
+                fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 13,
+                cursor: 'pointer', transition: 'all 0.2s', position: 'relative',
               }}
-              onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = s.linkHover; e.currentTarget.style.background = isActive ? s.linkActiveBg : 'rgba(255,255,255,0.05)' }}
-              onMouseLeave={e => { e.currentTarget.style.color = isActive ? s.linkActiveColor : s.linkColor; e.currentTarget.style.background = isActive ? s.linkActiveBg : 'transparent' }}
             >
-              {l.label}
+              {item.label}
+              {active && (
+                <div style={{
+                  position: 'absolute', bottom: -12, left: '50%', transform: 'translateX(-50%)',
+                  width: 4, height: 4, borderRadius: '50%', background: '#00c2e0'
+                }} />
+              )}
             </button>
           )
         })}
       </div>
 
-      {/* CTA + mobile */}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+      {/* Actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+         {user && (
+           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginRight: 8 }}>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'right' }}>
+                 <div style={{ color: '#fff', fontWeight: 700 }}>{user.name}</div>
+                 <div>Personnel ID: SRT-882</div>
+              </div>
+              <button 
+                onClick={logout}
+                style={{ 
+                  background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)',
+                  padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer'
+                }}
+              >
+                Logout
+              </button>
+           </div>
+         )}
         <button
-          onClick={() => navigate('contact')}
+          onClick={() => navigate('fileComplaint')}
           style={{
-            background: '#1a56e8', color: '#fff', border: 'none', cursor: 'pointer',
-            padding: '9px 22px', borderRadius: 9,
+            padding: '10px 24px', borderRadius: 10, border: 'none',
+            background: '#1a56e8', color: '#fff',
             fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 13,
-            display: 'flex', alignItems: 'center', gap: 8,
-            boxShadow: '0 4px 14px rgba(26,86,232,0.4)', transition: 'all 0.2s',
+            cursor: 'pointer', transition: 'all 0.2s',
+            boxShadow: '0 4px 16px rgba(26,86,232,0.3)',
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#3b74ff'; e.currentTarget.style.transform = 'translateY(-1px)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = '#1a56e8'; e.currentTarget.style.transform = '' }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#3b74ff'
+            e.currentTarget.style.transform = 'translateY(-1px)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = '#1a56e8'
+            e.currentTarget.style.transform = 'none'
+          }}
         >
-          <Icon name="file" size={13} color="white" />
           File Complaint
-        </button>
-
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="mobile-menu-btn"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'none' }}
-        >
-          <Icon name={mobileOpen ? 'x' : 'menu'} size={22} color={s.menuIconColor} />
         </button>
       </div>
 
-      {/* Mobile dropdown */}
-      {mobileOpen && (
-        <div style={{
-          position: 'absolute', top: 64, left: 0, right: 0,
-          background: s.mobileBg, borderBottom: `1px solid ${s.mobileBorder}`,
-          padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 4, zIndex: 300,
-        }}>
-          {links.map(l => (
-            <button
-              key={l.id}
-              onClick={() => { navigate(l.id); setMobileOpen(false) }}
-              style={{
-                background: l.id === page ? 'rgba(0,194,224,0.08)' : 'none',
-                border: 'none', cursor: 'pointer', textAlign: 'left',
-                padding: '11px 14px', borderRadius: 8,
-                fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15,
-                color: l.id === page ? '#00c2e0' : s.mobileLinkColor,
-              }}
-            >
-              {l.label}
-            </button>
-          ))}
-        </div>
-      )}
-
       <style>{`
-        @media(max-width: 700px) {
-          nav > div:nth-child(2) { display: none !important; }
-          .mobile-menu-btn { display: block !important; }
-          nav { padding: 0 20px !important; }
+        @media(max-width: 900px) {
+           nav { padding: 0 20px !important; }
+           nav > div:nth-child(2) { display: none !important; }
+           nav > div:nth-child(3) > div:first-child { display: none !important; }
         }
       `}</style>
     </nav>

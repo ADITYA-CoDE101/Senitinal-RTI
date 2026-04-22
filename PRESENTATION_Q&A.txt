@@ -1,0 +1,531 @@
+================================================================================
+                    SENTINEL-RTI - PRESENTATION Q&A GUIDE
+================================================================================
+
+This document contains potential questions that may be asked during project
+presentations or by mentors, along with suggested answers based on the codebase.
+
+================================================================================
+SECTION 1: GENERAL & OVERVIEW
+================================================================================
+
+Q1: What is Sentinel-RTI? What problem does it solve?
+--------------------------------------------------------------------------------
+A: Sentinel-RTI is a full-stack web application that simplifies the RTI (Right to
+   Information) filing process for Indian citizens. It provides an intuitive
+   interface where users can file complaints, track status, and receive AI assistance
+   to draft legally sound RTI applications. The app bridges the gap between
+   citizens and the official rtionline.gov.in portal by automating form filling
+   and providing smart assistance.
+
+Q2: Who is the target audience?
+--------------------------------------------------------------------------------
+A: Indian citizens who want to file RTI complaints but find the official
+   rtionline.gov.in portal confusing or time-consuming. Also useful for:
+   - Rural citizens with limited tech knowledge
+   - First-time RTI filers
+   - Activists and NGOs handling multiple complaints
+   - Anyone seeking quick status tracking
+
+Q3: What is the tech stack and why did you choose it?
+--------------------------------------------------------------------------------
+A: MERN Stack (MongoDB, Express, React, Node.js):
+   - React + Vite: Fast, modern frontend with hot reload
+   - Express.js: Minimal, flexible backend framework
+   - MongoDB: Flexible schema for handling varied complaint data
+   - Node.js: JavaScript everywhere for full-stack consistency
+   Additional: JWT (auth), Google Gemini AI (intelligent features),
+   Puppeteer (automated RTI portal submission), bcrypt (password hashing)
+
+Q4: What are the main features?
+--------------------------------------------------------------------------------
+A: 1. User Authentication (Register/Login with JWT)
+   2. File Complaint (text, image, voice, location input modes)
+   3. AI-Powered Analysis (category detection, severity assessment, keyword extraction)
+   4. Legal Draft Generation (AI-assisted RTI draft creation)
+   5. Dashboard (statistics, tracking, timeline)
+   6. RTI Portal Auto-Submission (Puppeteer-based automation)
+   7. Automated Follow-ups (reminders, appeals, escalations)
+   8. Status Tracking (real-time RTI status updates)
+
+Q5: How is this different from the official RTI Online portal?
+--------------------------------------------------------------------------------
+A: Key Differences:
+   - User-Friendly UI: Simplified forms instead of complex government interface
+   - AI Assistance: Auto-categorization, severity scoring, draft generation
+   - Multi-Modal Input: File complaints via text, voice, images, or location
+   - Tracking: All your complaints in one unified dashboard
+   - Automation: Auto-fills RTI portal forms (future enhancement)
+   - No CAPTCHA hell: User-friendly workflow with guided steps
+
+================================================================================
+SECTION 2: ARCHITECTURE & DESIGN
+================================================================================
+
+Q6: Explain the project architecture (MVC pattern)
+--------------------------------------------------------------------------------
+A: The backend follows MVC pattern:
+   - Models: User.js, Complaint.js (Mongoose schemas)
+   - Controllers: authController.js, complaintController.js, etc.
+   - Views: Handled by frontend React components
+
+   Directory Structure:
+   backend/
+   ├── config/        # Database configuration
+   ├── controllers/   # Route handlers
+   ├── middleware/    # Auth middleware
+   ├── models/        # Mongoose schemas
+   ├── routes/        # API endpoints
+   ├── services/     # Business logic (AI, RTI Portal)
+   │   ├── ai/       # Gemini AI services
+   │   └── rtiPortal/ # RTI portal automation
+   ├── uploads/      # File uploads
+   └── server.js     # Entry point
+
+Q7: Why separate backend and frontend?
+--------------------------------------------------------------------------------
+A: Separation provides:
+   - Scalability: Can update frontend without affecting backend
+   - Team Collaboration: Frontend and backend developers work independently
+   - Security: API-only exposure, no business logic in client
+   - Deployment: Can host on different servers (e.g., Vercel + Render)
+   - Performance: Optimized builds for each layer
+
+Q8: How do backend services communicate with each other?
+--------------------------------------------------------------------------------
+A: Services are imported as JavaScript modules:
+   - aiService.js exports classification/draft functions
+   - rtiPortal/index.js exports submission functions
+   - Controllers call these services and return responses to routes
+
+Q9: What's the role of `services_may_add` directory?
+--------------------------------------------------------------------------------
+A: This is a placeholder directory for future service additions. Currently empty,
+   intended for:
+   - Additional AI providers
+   - Payment gateway integration
+   - Email/SMS notifications
+   - Analytics services
+
+================================================================================
+SECTION 3: AUTHENTICATION & SECURITY
+================================================================================
+
+Q10: How does user authentication work?
+--------------------------------------------------------------------------------
+A: JWT-based authentication:
+   1. User registers with name, email, password
+   2. Password hashed with bcrypt (10 salt rounds)
+   3. On login, returns JWT token (expires in 30 days)
+   4. Token sent in Authorization header for protected routes
+   5. authMiddleware.js verifies token before allowing access
+
+   See: backend/middleware/authMiddleware.js
+
+Q11: What JWT strategy do you use? Token expiry?
+--------------------------------------------------------------------------------
+A: JWT algorithm: HS256 (HMAC SHA-256)
+   - Secret: JWT_SECRET from environment variables
+   - Expiry: 30 days (configurable in authController.js)
+   - Token payload: { id, email, name }
+
+Q12: How are passwords stored? (bcrypt?)
+--------------------------------------------------------------------------------
+A: Yes, bcryptjs with salt rounds of 10:
+   - Hashing: await bcrypt.hash(password, salt)
+   - Verification: await bcrypt.compare(enteredPassword, hashedPassword)
+   - See: backend/models/User.js (userSchema.pre('save'))
+
+Q13: How is the API secured?
+--------------------------------------------------------------------------------
+A: Multiple layers:
+   1. JWT tokens for protected routes
+   2. CORS configuration (allowed origins)
+   3. Environment variables for secrets (.env)
+   4. select: false on sensitive fields (passwords not returned in queries)
+   5. Input validation via Mongoose schemas
+
+Q14: What middleware is used for auth?
+--------------------------------------------------------------------------------
+A: authMiddleware.js provides:
+   - verifyToken: Decodes JWT, attaches user to req.user
+   - Optional: adminCheck for admin-only routes
+
+Q15: Are sensitive files (uploads) protected?
+--------------------------------------------------------------------------------
+A: Currently uploads are served statically via Express:
+   app.use('/uploads', express.static(uploadsDir))
+   For production, should add:
+   - Authentication check before serving
+   - Cloud storage (AWS S3) with signed URLs
+   - File type validation
+
+================================================================================
+SECTION 4: RTI PORTAL INTEGRATION
+================================================================================
+
+Q16: How do you connect to RTI Online portal?
+--------------------------------------------------------------------------------
+A: Using Puppeteer (headless Chrome):
+   - Launch browser programmatically
+   - Navigate to rtionline.gov.in
+   - Fill forms, solve captcha, submit
+   - Capture payment URLs and registration numbers
+
+   See: backend/services/rtiPortal/rtionlineAdapter.js
+
+Q17: What does `ministryMapper.js` do?
+--------------------------------------------------------------------------------
+A: Maps complaint categories to appropriate government ministries:
+   Example mappings:
+   - "Road & Infrastructure" → "Ministry of Road Transport"
+   - "Education" → "Ministry of Education"
+   - "Healthcare" → "Ministry of Health & Family Welfare"
+
+   See: backend/services/rtiPortal/ministryMapper.js
+
+Q18: How are credentials handled securely?
+--------------------------------------------------------------------------------
+A: User RTI portal credentials stored with AES-256 encryption:
+   - Encrypted before saving to database
+   - Decrypted only when needed for portal submission
+   - select: false prevents exposure in queries
+
+   Note: Current implementation uses email+phone+OTP, not stored credentials
+
+Q19: What's the `test_rti_flow.js` for?
+--------------------------------------------------------------------------------
+A: Testing script to validate the RTI portal submission flow:
+   - Tests each step of the automation
+   - Verifies CAPTCHA handling
+   - Checks OTP verification flow
+   - Used during development for debugging
+
+================================================================================
+SECTION 5: AI FEATURES
+================================================================================
+
+Q20: What AI services are integrated?
+--------------------------------------------------------------------------------
+A: Google Gemini AI (via @google/generative-ai):
+   - Gemini 2.0 Flash for text generation
+   - Vision models for image analysis
+   - Key rotation across multiple API keys
+
+   See: backend/services/ai/config.js for configuration
+
+Q21: How does `geminiClient` work?
+--------------------------------------------------------------------------------
+A: Low-level Gemini API wrapper providing:
+   - Multi-key rotation (handles quota limits)
+   - Model rotation (tries text models first, falls back to vision)
+   - JSON parsing for structured responses
+   - Retry logic with error handling
+
+   See: backend/services/ai/geminiClient.js
+
+Q22: What's the purpose of `hybridAnalyser.js`?
+--------------------------------------------------------------------------------
+A: Combines multiple analysis approaches:
+   1. Rule-based keyword matching (fast, reliable)
+   2. AI-powered classification (when available)
+   3. Falls back to rule-based on AI failure
+   Ensures always returns results even if AI is unavailable
+
+Q23: How does `draftGenerator` help users?
+--------------------------------------------------------------------------------
+A: Generates legally sound RTI application drafts:
+   1. Analyzes complaint description
+   2. Extracts key points and context
+   3. Generates formatted RTI application text
+   4. Includes relevant legal references
+
+   See: backend/services/ai/draftGenerator.js
+
+Q24: What's the `ruleEngine` for?
+--------------------------------------------------------------------------------
+A: Rule-based fallback when AI is unavailable:
+   - Keyword matching for category detection
+   - Severity scoring based on keywords
+   - Authority mapping based on category
+   Ensures system works even without AI API keys
+
+================================================================================
+SECTION 6: DATABASE & MODELS
+================================================================================
+
+Q25: Which database do you use? MongoDB?
+--------------------------------------------------------------------------------
+A: MongoDB with Mongoose ODM:
+   - Connection: mongoose.connect() in config/db.js
+   - Flexible schema for varied complaint types
+   - Nested documents for timeline, follow-ups, AI processing
+
+Q26: What are the main schemas (User, Complaint)?
+--------------------------------------------------------------------------------
+A: User Schema (backend/models/User.js):
+   - name, email, password (hashed)
+   - Profile: phone, gender, address, pincode, state
+   - RTI Portal credentials (encrypted)
+   - Timestamps
+
+   Complaint Schema (backend/models/Complaint.js):
+   - trackingId (unique, auto-generated)
+   - description, category, status, severity
+   - Input modes: text, image, voice, location
+   - AI processing results
+   - Timeline events
+   - RTI portal submission details
+   - Follow-ups
+
+Q27: How is complaint data structured?
+--------------------------------------------------------------------------------
+A: Key Complaint fields:
+   - Core: trackingId, description, category, status
+   - Input: location, geoCoords, imageUrl, voiceTranscript
+   - AI: category, severity, severityScore, keywords, summary
+   - Authority: assigned based on category mapping
+   - Timeline: array of {date, event, status}
+   - RTI Portal: status, portal, registrationNumber, paymentLink
+
+Q28: Are there any relationships between models?
+--------------------------------------------------------------------------------
+A: Implied relationships:
+   - Complaint references User via user field (not shown in current schema)
+   - User.profileInfo used to auto-fill RTI portal forms
+   - RTI submissions linked to complaints via complaintId
+
+================================================================================
+SECTION 7: FRONTEND FEATURES
+================================================================================
+
+Q29: What pages/components exist?
+--------------------------------------------------------------------------------
+A: Pages (frontend/src/pages/):
+   - Home.jsx: Landing page
+   - Login.jsx, Register.jsx: Authentication
+   - FileComplaint.jsx: Complaint submission
+   - Dashboard.jsx: User dashboard with stats
+   - Track.jsx: Complaint tracking
+   - Contact.jsx: Contact form
+   - About.jsx: About page
+
+   Components:
+   - Navbar.jsx, Icon.jsx: UI components
+   - Mobile: GeoDetect, VoiceRecorder, CameraCapture
+
+Q30: How does the file complaint flow work?
+--------------------------------------------------------------------------------
+A: 1. User logs in
+   2. Navigate to File Complaint
+   3. Enter description (text/voice/image)
+   4. Select category
+   5. AI analyzes and suggests category/severity
+   6. Option: Generate legal draft with AI
+   7. Submit → complaint created with tracking ID
+   8. Option: Auto-submit to RTI portal
+
+Q31: What's `GeoDetect`, `VoiceRecorder`, `CameraCapture`?
+--------------------------------------------------------------------------------
+A: Mobile-friendly input features:
+   - GeoDetect: Gets user's GPS coordinates for location
+   - VoiceRecorder: Records voice, transcribes to text
+   - CameraCapture: Takes photos as evidence
+   All located: frontend/src/components/mobile/
+
+Q32: How is state managed (AuthContext)?
+--------------------------------------------------------------------------------
+A: React Context API:
+   - AuthContext.jsx provides user authentication state
+   - login/logout functions
+   - Persists JWT in localStorage
+   - ProtectedRoute component for authenticated pages
+
+Q33: How do you handle API calls?
+--------------------------------------------------------------------------------
+A: Using axios-like fetch wrapper:
+   - services/api.js provides fetch wrapper
+   - Automatic JWT header insertion
+   - Error handling and loading states
+   - Base URL: http://localhost:5000/api
+
+================================================================================
+SECTION 8: FEATURES & FUNCTIONALITY
+================================================================================
+
+Q34: Can users track RTI status?
+--------------------------------------------------------------------------------
+A: Yes, via Track page:
+   - Enter tracking ID (SRT-YYYY-NNNN format)
+   - View complaint details, timeline, status
+   - RTI portal registration number (when submitted)
+
+Q35: How does the dashboard work?
+--------------------------------------------------------------------------------
+A: Dashboard shows:
+   - Total complaints filed
+   - Status breakdown (submitted, pending, resolved)
+   - Recent complaints list
+   - Quick actions
+
+   API: GET /api/dashboard/stats
+
+Q36: What is the contact form for?
+--------------------------------------------------------------------------------
+A: General contact form for user inquiries:
+   - Name, email, message fields
+   - Stored in database
+   - Admin can view in dashboard (future)
+   API: POST /api/contact
+
+Q37: Is there a waitlist feature?
+--------------------------------------------------------------------------------
+A: Yes, Waitlist page:
+   - For users to join waiting list
+   - Stores email and interest
+   - Used during early access phase
+
+================================================================================
+SECTION 9: DEPLOYMENT & TESTING
+================================================================================
+
+Q38: How do you run the project locally?
+--------------------------------------------------------------------------------
+A: # From root directory
+   npm install (installs concurrently)
+   npm run dev  # Runs both backend + frontend
+
+   # Or separately:
+   npm run server  # Backend on port 5000
+   npm run client  # Frontend on port 5173
+
+   Prerequisites: MongoDB running, .env configured
+
+Q39: Are there any environment variables needed?
+--------------------------------------------------------------------------------
+A: Yes, backend/.env should contain:
+   - MONGO_URI: MongoDB connection string
+   - JWT_SECRET: Random string for JWT signing
+   - GEMINI_API_KEY: Google AI API key(s)
+   - PORT: Server port (default 5000)
+
+Q40: Is there a production build?
+--------------------------------------------------------------------------------
+A: Yes:
+   - Frontend: cd frontend && npm run build
+   - Output in frontend/dist/
+   - Server: cd backend && npm start
+
+Q41: How do you handle CORS?
+--------------------------------------------------------------------------------
+A: Using express cors middleware:
+   app.use(cors())
+   By default allows all origins
+   For production, specify allowed origins
+
+Q42: Any unit/integration tests?
+--------------------------------------------------------------------------------
+A: Currently NO dedicated test suite. test_rti_flow.js is a manual test
+   script. Recommendations for future:
+   - Jest for backend unit tests
+   - React Testing Library for frontend
+   - Supertest for API integration tests
+   - Cypress for E2E testing
+
+================================================================================
+SECTION 10: CHALLENGES & FUTURE
+================================================================================
+
+Q43: What were the major challenges faced?
+--------------------------------------------------------------------------------
+A: 1. RTI Portal Automation: CAPTCHA and OTP verification
+   2. AI Reliability: Fallback mechanisms when AI fails
+   3. Multi-modal Input: Voice transcription, image handling
+   4. Security: Encrypting credentials, secure auth
+   5. Tracking: Syncing with RTI portal status
+
+Q44: What features would you add next?
+--------------------------------------------------------------------------------
+A: Priority enhancements:
+   1. Complete RTI portal auto-submission
+   2. Payment integration (for RTI fees)
+   3. Email/SMS notifications
+   4. Admin dashboard
+   5. Mobile app (React Native)
+   6. Multi-language support
+   7. Analytics dashboard
+
+Q45: How would you scale this for millions of users?
+--------------------------------------------------------------------------------
+A: Scaling strategy:
+   1. Database: MongoDB Atlas with sharding
+   2. Backend: Kubernetes with auto-scaling
+   3. Caching: Redis for sessions and frequently accessed data
+   4. Queue: Bull/RabbitMQ for async operations (RTI submission)
+   5. CDN: Cloudflare for static assets
+   6. Rate limiting: Prevent abuse
+   7. Analytics: Track usage patterns
+
+================================================================================
+SECTION 11: TECHNICAL DEEP DIVES
+================================================================================
+
+Q46: How does the complaint auto-categorization work?
+--------------------------------------------------------------------------------
+A: Hybrid approach in backend/services/ai/hybridAnalyser.js:
+   1. Rule-based classification (keyword matching)
+   2. AI classification via Gemini
+   3. Confidence scoring
+   4. Authority mapping
+   Categories: Road & Infrastructure, Water, Electricity, Municipal,
+   Education, Healthcare, Land & Property, Public Transport, Environment
+
+Q47: Explain the severity assessment system?
+--------------------------------------------------------------------------------
+A: Multi-level assessment:
+   1. Rule-based keywords:
+      - HIGH: accident, danger, emergency, months, years, ignored
+      - MEDIUM: broken, damaged, weeks, complaint
+      - LOW: default
+   2. AI assessment: Gemini provides severityScore (0-100)
+   3. Final severity: Combined or AI-only
+   4. Reason: Extracted from analysis
+
+Q48: How does the timeline system work?
+--------------------------------------------------------------------------------
+A: Complaint timeline tracks all events:
+   - Initial: "Complaint Filed" (status: submitted)
+   - RTI submission: "RTI submitted to rtionline.gov.in"
+   - Status changes: "Pending", "Escalated", "Resolved"
+   Each event: {date, event, status}
+
+Q49: What follow-up system exists?
+--------------------------------------------------------------------------------
+A: Automated follow-ups in Complaint schema:
+   followUps: [{type, scheduledAt, sentAt, status}]
+   Types: reminder, appeal, escalation
+   Scheduled after initial submission
+   Can be triggered manually or cron-based
+
+Q50: How does the legal draft generation work?
+--------------------------------------------------------------------------------
+A: Draft generation flow:
+   1. User enters complaint description
+   2. AI analyzes content (keywords, context)
+   3. Templates used for each category
+   4. Gemini generates formal RTI draft
+   5. User can edit before final submission
+
+================================================================================
+END OF Q&A GUIDE
+================================================================================
+
+Notes:
+- This document was generated based on code analysis
+- Answers reflect the current implementation state
+- Some features may be in development or incomplete
+- Review actual code for precise implementation details
+
+Project: Sentinel-RTI
+Version: 1.0.0
+Tech Stack: MERN + AI (Gemini) + Puppeteer
