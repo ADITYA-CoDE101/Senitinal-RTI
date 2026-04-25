@@ -23,7 +23,7 @@ const WORKFLOW = [
   { num: '05', title: 'Complaint Generation',  icon: 'file',   tags: ['RTI Draft','Legal Format','Evidence'],      desc: 'Generates a complete, legally accurate RTI or grievance letter with full evidence summary attached.' },
   { num: '06', title: 'Smart Routing',         icon: 'route',  tags: ['340+ Authorities','State + Central'],       desc: 'Identifies the correct government authority, department, and optimal submission platform automatically.' },
   { num: '07', title: 'Submission & Verify',   icon: 'send',   tags: ['Auto-fill','OTP Handling','Confirmation'],  desc: 'Auto-fills government portals, handles OTP verification, CAPTCHA resolution, and confirms submission.' },
-  { num: '08', title: 'Track & Escalate',      icon: 'bell',   tags: ['Reminders','Auto-Appeals','CIC Escalation'],'desc': 'Lifecycle monitoring, automated reminders, appeal generation, and CIC escalation for overdue complaints.' },
+{ num: '08', title: 'Track & Escalate',      icon: 'bell',  tags: ['Reminders','Auto-Appeals','CIC Escalation'], desc: 'Lifecycle monitoring, automated reminders, appeal generation, and CIC escalation for overdue complaints.' },
 ]
 
 /* ── TERMINAL CARD ────────────────────────────────────────────── */

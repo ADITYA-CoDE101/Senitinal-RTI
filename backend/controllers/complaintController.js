@@ -158,6 +158,7 @@ const submitComplaint = async (req, res) => {
       success: true,
       message: 'Complaint filed successfully!',
       data: {
+        _id: complaint._id,
         trackingId: complaint.trackingId,
         status: complaint.status,
         severity: complaint.severity,

@@ -31,6 +31,6 @@ const TEXT_MODELS   = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.0-pro']
 
 module.exports = {
   AI_THRESHOLD, STRONG_CATEGORY_SCORE, ALWAYS_AI_FOR_HIGH, MIN_TEXT_FOR_RULES,
-  KEYS, nextKey, advanceKey,
+  KEYS, nextKey, advanceKey, keyIndex,
   VISION_MODELS, TEXT_MODELS,
 };

@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react'
 import Icon from '../components/Icon'
-import { analyzeComplaint, submitComplaint } from '../services/api'
+import { analyzeComplaint, submitComplaint, submitToRTIPortal } from '../services/api'
 import CameraCapture from '../components/mobile/CameraCapture'
 import VoiceRecorder from '../components/mobile/VoiceRecorder'
 import GeoDetect     from '../components/mobile/GeoDetect'
+import { useAuth }   from '../context/AuthContext'
 
 const BG = '#07090f', SURF = '#0d1117', BDIM = 'rgba(255,255,255,0.06)'
 const BLUE = '#1a56e8', CYAN = '#00c2e0', GREEN = '#0ec98c', AMBER = '#f59e0b', RED = '#ef4444', PURPLE = '#e04dff'
@@ -78,6 +79,8 @@ function ConfidenceMeter({ value }) {
 }
 
 export default function FileComplaint({ navigate }) {
+  const { user } = useAuth()
+
   // ── Core state ──
   const [step,          setStep]          = useState('input')
   const [mode,          setMode]          = useState('text')
@@ -93,13 +96,25 @@ export default function FileComplaint({ navigate }) {
   const [legalDraft,    setLegalDraft]    = useState('')
   const [showDraft,     setShowDraft]     = useState(false)
 
-  // ── Verification state ──
-  const [otp,           setOtp]           = useState('')
-  const [otpSent,       setOtpSent]       = useState(false)
-  const [otpVerified,   setOtpVerified]   = useState(false)
-  const [captchaQ,      setCaptchaQ]      = useState(null)
-  const [captchaAns,    setCaptchaAns]    = useState('')
-  const [captchaPassed, setCaptchaPassed] = useState(false)
+  // ── User info edit state ──
+  const [editingInfo,   setEditingInfo]   = useState(false)
+  const [userInfo,      setUserInfo]      = useState({ 
+    name: user?.name || '', 
+    address: user?.address || '', 
+    phone: user?.phone || '' 
+  })
+
+  // Sync user info if it loads after component mount
+  useEffect(() => {
+    if (user) {
+      setUserInfo(prev => ({
+        ...prev,
+        name: prev.name || user.name || '',
+        address: prev.address || user.address || '',
+        phone: prev.phone || user.phone || ''
+      }))
+    }
+  }, [user])
 
   // ── Result & error state ──
   const [submitting,    setSubmitting]    = useState(false)
@@ -108,10 +123,7 @@ export default function FileComplaint({ navigate }) {
 
   const handle = (k, v) => { setForm(f=>({...f,[k]:v})); setError('') }
 
-  useEffect(() => {
-    const a = Math.floor(Math.random()*9)+1, b = Math.floor(Math.random()*9)+1
-    setCaptchaQ({ a, b, ans: a+b })
-  }, [])
+
 
   // ── Image handler (passed to CameraCapture as prop) ──
   const onImage = file => {
@@ -137,21 +149,24 @@ export default function FileComplaint({ navigate }) {
     setAiLoading(false)
   }
 
-  // ── OTP Mock ──
-  const sendOTP = () => { setOtpSent(true); setError('') }
-  const verifyOTP = () => { if(otp==='123456'){setOtpVerified(true)}else{setError('Invalid OTP. Use 123456 for demo.')} }
 
-  // ── CAPTCHA ──
-  const checkCaptcha = () => { if(parseInt(captchaAns)===captchaQ?.ans){setCaptchaPassed(true)}else{setError('Wrong answer. Try again.'); setCaptchaAns('')} }
 
   // ── Submit ──
   const doSubmit = async () => {
-    if (!otpVerified) { setError('Please verify OTP first.'); return }
-    if (!captchaPassed) { setError('Please solve the CAPTCHA.'); return }
+    if (!userInfo.name.trim()) { setError('Please enter your name before submitting.'); return }
     setSubmitting(true); setError('')
     try {
       const desc = mode==='voice' ? voiceTranscript : form.description
-      const res = await submitComplaint({ description:desc, category:form.category, location:form.location, inputMode:mode, imageFile: mode==='image'?imageFile:null, voiceTranscript: mode==='voice'?voiceTranscript:'', geoLat:geoCoords?.lat, geoLng:geoCoords?.lng, legalDraft, otpVerified, captchaPassed })
+      const res = await submitComplaint({ description:desc, category:form.category, location:form.location, inputMode:mode, imageFile: mode==='image'?imageFile:null, voiceTranscript: mode==='voice'?voiceTranscript:'', geoLat:geoCoords?.lat, geoLng:geoCoords?.lng, legalDraft, applicantName:userInfo.name, applicantAddress:userInfo.address||form.location })
+      
+      try {
+        if (res.data?._id) {
+          await submitToRTIPortal(res.data._id, { userId: user?._id || user?.id });
+        }
+      } catch (err) {
+        console.error('RTI Automation trigger failed:', err);
+      }
+      
       setResult(res.data); setStep('done')
     } catch(e) { setError(e.message||'Submission failed') }
     setSubmitting(false)
@@ -363,150 +378,105 @@ export default function FileComplaint({ navigate }) {
         {step==='verify' && (
           <div style={{ display:'grid', gridTemplateColumns:'1fr 340px', gap:32, alignItems:'start' }}>
             <div>
-              {/* OTP */}
+              {/* Applicant Info Card */}
               <div style={{ background:SURF, borderRadius:20, border:`1px solid ${BDIM}`, padding:28, marginBottom:20 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20 }}>
-                  <div style={{ width:44, height:44, borderRadius:12, background:`${PURPLE}15`, border:`1px solid ${PURPLE}30`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    <Icon name="shield" size={20} color={PURPLE} />
-                  </div>
-                  <div>
-                    <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18 }}>OTP Verification</div>
-                    <div style={{ fontSize:13, color:'rgba(255,255,255,0.4)' }}>Verify your identity before submission</div>
-                  </div>
-                  {otpVerified && <span style={{ marginLeft:'auto', padding:'4px 12px', background:`${GREEN}15`, border:`1px solid ${GREEN}30`, borderRadius:6, color:GREEN, fontSize:12, fontWeight:700 }}>✓ Verified</span>}
-                </div>
-                {!otpVerified && (
-                  <>
-                    {!otpSent ? (
-                      <button onClick={sendOTP} style={{ width:'100%', padding:'12px', background:PURPLE, color:'#fff', border:'none', borderRadius:10, fontWeight:700, cursor:'pointer', fontSize:14 }}>
-                        📱 Send OTP to Registered Mobile
-                      </button>
-                    ) : (
-                      <div style={{ display:'flex', gap:10 }}>
-                        <input value={otp} onChange={e=>setOtp(e.target.value)} maxLength={6} placeholder="Enter 6-digit OTP (demo: 123456)" style={{ flex:1, padding:'12px 16px', background:'rgba(255,255,255,0.04)', border:`1px solid ${BDIM}`, borderRadius:10, color:'#fff', outline:'none', fontSize:14, letterSpacing:3 }} />
-                        <button onClick={verifyOTP} style={{ padding:'12px 20px', background:PURPLE, color:'#fff', border:'none', borderRadius:10, fontWeight:700, cursor:'pointer' }}>Verify</button>
-                      </div>
-                    )}
-                    {otpSent && <p style={{ fontSize:12, color:'rgba(255,255,255,0.3)', marginTop:8 }}>Demo OTP: <strong style={{color:CYAN}}>123456</strong></p>}
-                  </>
-                )}
-              </div>
-
-              {/* CAPTCHA */}
-              <div style={{ background:SURF, borderRadius:20, border:`1px solid ${BDIM}`, padding:28, marginBottom:20 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20 }}>
-                  <div style={{ width:44, height:44, borderRadius:12, background:`${AMBER}15`, border:`1px solid ${AMBER}30`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    <Icon name="alertCircle" size={20} color={AMBER} />
-                  </div>
-                  <div>
-                    <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18 }}>CAPTCHA Challenge</div>
-                    <div style={{ fontSize:13, color:'rgba(255,255,255,0.4)' }}>Prove you're human</div>
-                  </div>
-                  {captchaPassed && <span style={{ marginLeft:'auto', padding:'4px 12px', background:`${GREEN}15`, border:`1px solid ${GREEN}30`, borderRadius:6, color:GREEN, fontSize:12, fontWeight:700 }}>✓ Passed</span>}
-                </div>
-                {!captchaPassed && captchaQ && (
-                  <div>
-                    <div style={{ textAlign:'center', padding:'24px', background:'rgba(255,255,255,0.03)', borderRadius:12, marginBottom:16 }}>
-                      <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:32, color:AMBER }}>{captchaQ.a} + {captchaQ.b} = ?</span>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                    <div style={{ width:44, height:44, borderRadius:12, background:`${CYAN}15`, border:`1px solid ${CYAN}30`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <Icon name="user" size={20} color={CYAN} />
                     </div>
-                    <div style={{ display:'flex', gap:10 }}>
-                      <input value={captchaAns} onChange={e=>setCaptchaAns(e.target.value)} onKeyDown={e=>e.key==='Enter'&&checkCaptcha()} type="number" placeholder="Your answer" style={{ flex:1, padding:'12px 16px', background:'rgba(255,255,255,0.04)', border:`1px solid ${BDIM}`, borderRadius:10, color:'#fff', outline:'none', fontSize:16, textAlign:'center' }} />
-                      <button onClick={checkCaptcha} style={{ padding:'12px 20px', background:AMBER, color:'#000', border:'none', borderRadius:10, fontWeight:800, cursor:'pointer' }}>Submit</button>
+                    <div>
+                      <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18 }}>Applicant Information</div>
+                      <div style={{ fontSize:13, color:'rgba(255,255,255,0.4)' }}>Details that will appear on your RTI application</div>
                     </div>
                   </div>
-                )}
-              </div>
-
-              {/* Legal Draft Toggle */}
-              <div style={{ background:SURF, borderRadius:20, border:`1px solid ${BDIM}`, padding:28, marginBottom:20 }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: showDraft?20:0 }}>
-                  <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18 }}>📄 RTI Legal Draft</div>
-                  <button onClick={()=>{ if(!showDraft&&!legalDraft){
-                    const d = mode==='voice' ? voiceTranscript : form.description;
-                    const now = new Date();
-                    const dateStr = now.toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
-                    const yearAgo = new Date(now); yearAgo.setFullYear(yearAgo.getFullYear()-1);
-                    const fromStr = yearAgo.toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
-                    const firstSentence = d.split(/[.!?]/)[0].trim();
-                    const rest = d.slice(firstSentence.length).replace(/^[.!?\s]+/,'').trim();
-                    setLegalDraft(
-`APPLICATION UNDER THE RIGHT TO INFORMATION ACT, 2005
-
-To,
-The Public Information Officer (PIO),
-${aiResult?.authority||'The Concerned Public Authority'},
-Government of India / State Government.
-
-Date: ${dateStr}
-Place: ${form.location||'[Location]'}
-
-Subject: Request for Information under Section 6(1) of the Right to Information Act, 2005 — regarding ${form.category} issue at ${form.location||'[Location]'}.
-
-Respected Sir / Madam,
-
-I am a citizen of India and I wish to bring to your kind attention a serious matter concerning ${form.category.toLowerCase()} in the area of ${form.location||'the concerned locality'}. ${firstSentence}.${rest?' '+rest:''}
-
-Despite the evident public impact of this issue, no satisfactory resolution has been forthcoming. I am therefore constrained to seek information under the provisions of the Right to Information Act, 2005 in order to understand the status of action taken by the competent authority.
-
-Accordingly, I hereby request the following specific information under Section 6(1) of the RTI Act, 2005:
-
-1. Kindly furnish the current status of the action taken, or proposed to be taken, by the concerned authority in response to the matter described above.
-
-2. Kindly provide copies of any inspection reports, field surveys, or official assessments conducted at the location mentioned, in the past twelve months.
-
-3. Kindly furnish the details of the budget allocated and the actual expenditure incurred for maintenance and remedial work at this location during the current and previous financial year.
-
-4. Kindly provide the names, designations, and official contact details of the officers directly responsible for overseeing and resolving this matter.
-
-5. Kindly furnish details of any earlier complaints or representations received by your office in respect of this matter, and the action taken on each.
-
-The information sought pertains to the period from ${fromStr} to ${dateStr}.
-
-I wish to state that the information sought does not fall within the exemptions contained in Sections 8 and 9 of the Right to Information Act, 2005, and that to the best of my knowledge, it pertains to your public authority.
-
-I am enclosing the prescribed application fee of Rs. 10/- (Rupees Ten only) as stipulated under the RTI Act. Kindly acknowledge receipt of this application and furnish the requested information within thirty (30) days as mandated under Section 7(1) of the RTI Act, 2005.
-
-Should no response be received within the stipulated period, or should I be dissatisfied with the response, I reserve the right to prefer a first appeal under Section 19(1) of the RTI Act, 2005, and to approach the appropriate Information Commission thereafter.
-
-Thanking you,
-
-Yours faithfully,
-
-Name    : [Applicant Name]
-Address : ${form.location||'[Address]'}
-Date    : ${dateStr}
-
-Enclosures:
-  1. Prescribed RTI application fee (Rs. 10/-)`)
-                  } setShowDraft(!showDraft) }} style={{ padding:'8px 16px', background:showDraft?'rgba(255,255,255,0.06)':'rgba(26,86,232,0.15)', color:showDraft?'rgba(255,255,255,0.5)':CYAN, border:`1px solid ${showDraft?BDIM:BLUE+'44'}`, borderRadius:8, cursor:'pointer', fontWeight:700, fontSize:13 }}>
-                    {showDraft?'Hide Draft':'Preview Draft'}
+                  <button onClick={()=>setEditingInfo(e=>!e)} style={{ padding:'7px 16px', background:editingInfo?`${GREEN}15`:'rgba(255,255,255,0.05)', color:editingInfo?GREEN:'rgba(255,255,255,0.5)', border:`1px solid ${editingInfo?GREEN+'44':BDIM}`, borderRadius:8, cursor:'pointer', fontWeight:700, fontSize:13 }}>
+                    {editingInfo ? '✓ Done' : '✏️ Edit'}
                   </button>
                 </div>
-                {showDraft && (
-                  <>
-                    <textarea value={legalDraft} onChange={e=>setLegalDraft(e.target.value)} style={{ width:'100%', minHeight:320, padding:20, background:'#f8fafc', color:'#1e293b', border:'1px solid #e2e8f0', borderRadius:12, fontFamily:"'Courier New',monospace", fontSize:12, lineHeight:1.6, resize:'vertical', outline:'none' }} />
-                    <button onClick={()=>{ const b=new Blob([legalDraft],{type:'text/plain'}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='RTI_Draft.txt'; a.click() }} style={{ marginTop:10, padding:'8px 16px', background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.5)', border:`1px solid ${BDIM}`, borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600 }}>⬇️ Download Draft</button>
-                  </>
+                {editingInfo ? (
+                  <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                    {[['name','Full Name','e.g. Rahul Sharma'],['address','Address / City','Area, City, State, PIN'],['phone','Phone Number','10-digit mobile number']].map(([key,label,ph])=>(
+                      <div key={key}>
+                        <div style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.35)', textTransform:'uppercase', letterSpacing:1.2, marginBottom:6 }}>{label}{key==='name'&&<span style={{color:RED}}> *</span>}</div>
+                        <input value={userInfo[key]} onChange={e=>setUserInfo(u=>({...u,[key]:e.target.value}))} placeholder={ph} style={{ width:'100%', padding:'12px 14px', background:'rgba(255,255,255,0.04)', border:`1px solid ${userInfo[key]?CYAN+'44':BDIM}`, borderRadius:10, color:'#fff', outline:'none', fontSize:14, transition:'border-color 0.2s', boxSizing:'border-box' }} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                    {[['👤 Name', userInfo.name||'—'],['📍 Address', userInfo.address||form.location||'—'],['📱 Phone', userInfo.phone||'—'],['📂 Category', form.category],['🗺️ Location', form.location||'Not specified'],['🏛️ Authority', aiResult?.authority||'—']].map(([k,v])=>(
+                      <div key={k} style={{ padding:'12px 16px', background:'rgba(255,255,255,0.03)', borderRadius:10, border:`1px solid ${BDIM}` }}>
+                        <div style={{ fontSize:11, color:'rgba(255,255,255,0.35)', marginBottom:4 }}>{k}</div>
+                        <div style={{ fontSize:13, fontWeight:600, color:v==='—'?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.85)', wordBreak:'break-word' }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!userInfo.name && !editingInfo && (
+                  <div style={{ marginTop:14, padding:'10px 14px', background:`${AMBER}10`, border:`1px solid ${AMBER}30`, borderRadius:8, color:AMBER, fontSize:13 }}>
+                    ⚠️ Click <strong>Edit</strong> and enter your name — required for RTI submission.
+                  </div>
                 )}
               </div>
 
-              {error && <div style={{ color:RED, marginBottom:12, fontSize:13, padding:'10px 14px', background:`${RED}10`, borderRadius:8 }}>{error}</div>}
+              {/* RTI Legal Draft — always visible */}
+              <div style={{ background:SURF, borderRadius:20, border:`1px solid ${BDIM}`, padding:28, marginBottom:20 }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18 }}>📄 RTI Legal Draft</div>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button onClick={()=>{
+                      const d = mode==='voice' ? voiceTranscript : form.description;
+                      const now = new Date();
+                      const dateStr = now.toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
+                      const yearAgo = new Date(now); yearAgo.setFullYear(yearAgo.getFullYear()-1);
+                      const fromStr = yearAgo.toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
+                      const fs = d.split(/[.!?]/)[0].trim();
+                      const rest = d.slice(fs.length).replace(/^[.!?\s]+/,'').trim();
+                      setLegalDraft(
+`APPLICATION UNDER THE RIGHT TO INFORMATION ACT, 2005\n\nTo,\nThe Public Information Officer (PIO),\n${aiResult?.authority||'The Concerned Public Authority'},\nGovernment of India / State Government.\n\nDate: ${dateStr}\nPlace: ${form.location||'[Location]'}\n\nSubject: Request for Information under Section 6(1) of the RTI Act, 2005 — regarding ${form.category} issue at ${form.location||'[Location]'}.\n\nRespected Sir / Madam,\n\nI, ${userInfo.name||'[Applicant Name]'}, am a citizen of India and I wish to bring to your kind attention a serious matter concerning ${form.category.toLowerCase()} in the area of ${form.location||'the concerned locality'}. ${fs}.${rest?' '+rest:''}\n\nDespite the evident public impact of this issue, no satisfactory resolution has been forthcoming. I am therefore constrained to seek information under the provisions of the Right to Information Act, 2005.\n\nAccordingly, I hereby request the following information under Section 6(1) of the RTI Act, 2005:\n\n1. Kindly furnish the current status of the action taken by the concerned authority.\n\n2. Kindly provide copies of any inspection reports or field surveys conducted at the location in the past twelve months.\n\n3. Kindly furnish details of the budget allocated and expenditure incurred for maintenance during the current and previous financial year.\n\n4. Kindly provide the names, designations, and contact details of officers responsible for this matter.\n\n5. Kindly furnish details of any earlier complaints received and the action taken on each.\n\nThe information sought pertains to the period from ${fromStr} to ${dateStr}.\n\nI am enclosing the prescribed fee of Rs. 10/- and request a response within 30 days as mandated under Section 7(1) of the RTI Act, 2005.\n\nYours faithfully,\n\nName    : ${userInfo.name||'[Applicant Name]'}\nAddress : ${userInfo.address||form.location||'[Address]'}\nPhone   : ${userInfo.phone||'[Phone]'}\nDate    : ${dateStr}\n\nEnclosures:\n  1. Prescribed RTI application fee (Rs. 10/-)`);
+                    }} style={{ padding:'8px 16px', background:`${BLUE}20`, color:CYAN, border:`1px solid ${BLUE}44`, borderRadius:8, cursor:'pointer', fontWeight:700, fontSize:13 }}>
+                      {legalDraft ? '🔄 Regenerate' : '✨ Generate Draft'}
+                    </button>
+                    {legalDraft && (
+                      <button onClick={()=>{ const b=new Blob([legalDraft],{type:'text/plain'}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='RTI_Draft.txt'; a.click() }} style={{ padding:'8px 16px', background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.5)', border:`1px solid ${BDIM}`, borderRadius:8, cursor:'pointer', fontSize:13, fontWeight:600 }}>
+                        ⬇️ Download
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {legalDraft ? (
+                  <textarea value={legalDraft} onChange={e=>setLegalDraft(e.target.value)} style={{ width:'100%', minHeight:360, padding:20, background:'#f8fafc', color:'#1e293b', border:'1px solid #e2e8f0', borderRadius:12, fontFamily:"'Courier New',monospace", fontSize:12, lineHeight:1.6, resize:'vertical', outline:'none' }} />
+                ) : (
+                  <div style={{ padding:'36px 20px', textAlign:'center', color:'rgba(255,255,255,0.25)', fontSize:14, border:`1px dashed ${BDIM}`, borderRadius:12 }}>
+                    Click <strong style={{color:CYAN}}>✨ Generate Draft</strong> above to create your RTI application letter.
+                  </div>
+                )}
+              </div>
+
+              {error && <div style={{ color:RED, marginBottom:12, fontSize:13, padding:'10px 14px', background:`${RED}10`, borderRadius:8, border:`1px solid ${RED}25` }}>{error}</div>}
               <div style={{ display:'flex', gap:12 }}>
                 <button onClick={()=>setStep('ai')} style={{ padding:'14px 20px', background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.6)', border:`1px solid ${BDIM}`, borderRadius:12, cursor:'pointer', fontWeight:700 }}>← Back</button>
-                <button onClick={doSubmit} disabled={submitting||!otpVerified||!captchaPassed} style={{ flex:1, padding:16, background:otpVerified&&captchaPassed?`linear-gradient(135deg,${GREEN},${CYAN}88)`:'rgba(255,255,255,0.05)', color:otpVerified&&captchaPassed?'#fff':'rgba(255,255,255,0.3)', border:'none', borderRadius:12, fontWeight:800, cursor:otpVerified&&captchaPassed?'pointer':'not-allowed', fontSize:15, boxShadow:otpVerified&&captchaPassed?`0 8px 24px ${GREEN}30`:'none', transition:'all 0.3s' }}>
-                  {submitting?'Submitting Formally...':'✅ Confirm & Submit Legal Document'}
+                <button onClick={doSubmit} disabled={submitting} style={{ flex:1, padding:16, background:`linear-gradient(135deg,${GREEN},${CYAN}88)`, color:'#fff', border:'none', borderRadius:12, fontWeight:800, cursor:'pointer', fontSize:15, boxShadow:`0 8px 24px ${GREEN}30`, opacity:submitting?0.7:1, transition:'all 0.3s' }}>
+                  {submitting ? 'Submitting...' : '✅ Confirm & Submit Legal Document'}
                 </button>
               </div>
             </div>
-            {/* Sidebar: auto-fill preview */}
+
+            {/* Sidebar */}
             <div style={{ background:SURF, borderRadius:20, border:`1px solid ${BDIM}`, padding:24, position:'sticky', top:88 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:16 }}>Auto-Fill Summary</div>
-              {[['Category',aiResult?.category||form.category],['Severity',aiResult?.severity||'MEDIUM'],['Authority',aiResult?.authority||'—'],['Location',form.location||'Not specified'],['Input Mode',mode],['Evidence',(aiResult?.evidenceFlags||[]).length+' item(s)']].map(([k,v])=>(
+              <div style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.3)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:16 }}>Filing Summary</div>
+              {[['Category',aiResult?.category||form.category],['Severity',aiResult?.severity||'MEDIUM'],['Authority',aiResult?.authority||'—'],['Location',form.location||'Not specified'],['Applicant',userInfo.name||'Not set'],['Evidence',(aiResult?.evidenceFlags||[]).length+' item(s)']].map(([k,v])=>(
                 <div key={k} style={{ padding:'10px 0', borderBottom:`1px solid ${BDIM}` }}>
                   <div style={{ fontSize:11, color:'rgba(255,255,255,0.3)', marginBottom:3 }}>{k}</div>
-                  <div style={{ fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.85)', wordBreak:'break-word' }}>{v}</div>
+                  <div style={{ fontSize:13, fontWeight:600, color: k==='Applicant'&&!userInfo.name?AMBER:'rgba(255,255,255,0.85)', wordBreak:'break-word' }}>{v}</div>
                 </div>
               ))}
+              <div style={{ marginTop:16, padding:14, background:`${GREEN}08`, borderRadius:10, border:`1px solid ${GREEN}20` }}>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginBottom:4 }}>Response Deadline</div>
+                <div style={{ fontWeight:800, fontSize:22, color:GREEN }}>30 Days</div>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,0.3)', marginTop:2 }}>Under RTI Act, 2005</div>
+              </div>
             </div>
           </div>
         )}

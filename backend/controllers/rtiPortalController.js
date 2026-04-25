@@ -147,7 +147,7 @@ const submitToRTIPortal = async (req, res) => {
     rtiPortalService.submitToRTIPortal({
       complaint,
       user,
-      ministry,
+      ministry: ministry || getMinistry(complaint.category),
       applicantInfo: {
         name:    user.name,
         gender:  user.gender  || 'M',

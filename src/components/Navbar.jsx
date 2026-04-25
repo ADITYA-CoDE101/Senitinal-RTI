@@ -41,6 +41,19 @@ const styles = {
     mobileBorder: '#e5e8f0',
     mobileLinkColor: '#2c3655',
   },
+  verify: {
+    bg: 'rgba(255,255,255,0.95)',
+    border: '1px solid #e5e8f0',
+    logoColor: '#0c0e14',
+    linkColor: '#8b93ab',
+    linkHover: '#1a56e8',
+    linkActiveBg: 'rgba(26,86,232,0.08)',
+    linkActiveColor: '#1a56e8',
+    menuIconColor: '#555',
+    mobileBg: '#ffffff',
+    mobileBorder: '#e5e8f0',
+    mobileLinkColor: '#2c3655',
+  },
 }
 
 export default function Navbar({ page, navigate }) {
@@ -49,6 +62,7 @@ export default function Navbar({ page, navigate }) {
 
   const links = [
     { id: 'home',    label: 'Home' },
+    { id: 'verify',  label: 'Verify' },
     { id: 'about',   label: 'About' },
     { id: 'contact', label: 'Contact' },
   ]

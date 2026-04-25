@@ -243,31 +243,48 @@ async function fillRTIForm(page, formData) {
   }
 
   // ── BPL Status ────────────────────────────────────────────────────────────
-  if (formData.isBPL) {
-    await page.evaluate(() => {
-      // Try Yes radio inside BPL section
-      const radios = [...document.querySelectorAll('input[type="radio"]')];
-      const bplYes = radios.find(r =>
-        r.value === 'yes' || r.value === 'Yes' || r.value === '1' ||
-        (r.id && r.id.toLowerCase().includes('bpl')) ||
-        (r.nextSibling?.textContent?.toLowerCase().includes('yes'))
-      );
-      if (bplYes) bplYes.click();
-    });
-    console.log('   BPL: Yes');
-  } else {
-    // Select 'No' for BPL
-    await page.evaluate(() => {
-      const radios = [...document.querySelectorAll('input[type="radio"]')];
-      const bplNo = radios.find(r =>
-        r.value === 'no' || r.value === 'No' || r.value === '0' ||
-        (r.nextSibling?.textContent?.toLowerCase().includes('no') &&
-         r.closest('tr, div, td')?.innerText?.toLowerCase().includes('bpl'))
-      );
-      if (bplNo) bplNo.click();
-    }).catch(() => {});
-    console.log('   BPL: No');
-  }
+  const bplValue = formData.isBPL ? 'Yes' : 'No';
+  await page.evaluate((bplVal) => {
+    // 1. Try to find a dropdown (select) for BPL/Poverty Line
+    const selects = [...document.querySelectorAll('select')];
+    const bplSelect = selects.find(s => 
+      s.id?.toLowerCase().includes('bpl') || 
+      s.name?.toLowerCase().includes('bpl') ||
+      s.parentElement?.textContent?.toLowerCase().includes('poverty') ||
+      s.closest('tr, div, td')?.textContent?.toLowerCase().includes('poverty')
+    );
+    
+    if (bplSelect) {
+      for (const opt of bplSelect.options) {
+        if (opt.text.toLowerCase().trim() === bplVal.toLowerCase()) {
+          bplSelect.value = opt.value;
+          bplSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          return;
+        }
+      }
+    }
+
+    // 2. Fallback to radio buttons just in case
+    const radios = [...document.querySelectorAll('input[type="radio"]')];
+    const targetRadios = radios.filter(r => 
+      r.id?.toLowerCase().includes('bpl') || 
+      r.name?.toLowerCase().includes('bpl') || 
+      r.closest('tr, div, td')?.innerText?.toLowerCase().includes('poverty') ||
+      r.closest('tr, div, td')?.innerText?.toLowerCase().includes('bpl')
+    );
+    
+    for (const r of targetRadios) {
+      const isYes = r.value.toLowerCase() === 'yes' || r.value === '1' || r.nextSibling?.textContent?.toLowerCase().includes('yes');
+      const isNo = r.value.toLowerCase() === 'no' || r.value === '0' || r.nextSibling?.textContent?.toLowerCase().includes('no');
+      
+      if ((bplVal === 'Yes' && isYes) || (bplVal === 'No' && isNo)) {
+        r.click();
+        break;
+      }
+    }
+  }, bplValue).catch(() => {});
+  
+  console.log(`   BPL: ${bplValue}`);
 
   // ── RTI Application Text — sanitize + fill ────────────────────────────────
   const sanitized = sanitizeRTIText(formData.rtiText || '').slice(0, MAX_CHARS);
